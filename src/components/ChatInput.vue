@@ -1,61 +1,108 @@
 <template>
   <div class="chat-input">
-    <!-- 双向绑定输入框内容，回车或点击按钮发送消息 -->
-    <input
+    <textarea
+      ref="textareaRef"
       v-model="inputText"
-      @keyup.enter="onSend"
-      type="text"
-      placeholder="请输入消息..."
-    />
-    <button @click="onSend">发送</button>
+      placeholder="输入消息..."
+      @keydown.enter.prevent="handleEnter"
+      @input="autoResize"
+      class="message-textarea"
+      rows="1"
+    ></textarea>
+    <button @click="sendMessage" class="send-button" :disabled="!inputText.trim()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, defineEmits } from "vue";
+import { ref } from 'vue';
 
-// 定义输入内容的响应式变量
-const inputText = ref("");
+const inputText = ref('');
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
-// 定义组件向父组件传递消息的事件
-const emit = defineEmits<{
-  (e: "sendMessage", text: string): void;
-}>();
+const emit = defineEmits(['sendMessage']);
 
-/**
- * 发送消息：
- * 1. 检查输入不为空
- * 2. 触发 sendMessage 事件传递输入内容
- * 3. 清空输入框
- */
-const onSend = () => {
-  if (inputText.value.trim() === "") return;
-  emit("sendMessage", inputText.value);
-  inputText.value = "";
+const sendMessage = () => {
+  const text = inputText.value.trim();
+  if (text) {
+    emit('sendMessage', text);
+    inputText.value = '';
+    // 重置文本框高度
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto';
+    }
+  }
+};
+
+const handleEnter = (e: KeyboardEvent) => {
+  // Shift+Enter 允许换行
+  if (e.shiftKey) return;
+  
+  // 普通 Enter 发送消息
+  sendMessage();
+};
+
+// 自动调整文本框高度
+const autoResize = () => {
+  const textarea = textareaRef.value;
+  if (textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }
 };
 </script>
 
 <style scoped>
 .chat-input {
   display: flex;
-  padding: 0.5rem;
-  border-top: 1px solid #ccc;
+  padding: var(--spacing-sm);
+  background: var(--bg-white);
+  border-top: 1px solid var(--border-color, #eee);
 }
 
-.chat-input input {
+.message-textarea {
   flex: 1;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-color, #eee);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  max-height: 150px;
+  overflow-y: auto;
+  line-height: 1.5;
 }
 
-.chat-input button {
-  margin-left: 0.5rem;
-  padding: 0.5rem 1rem;
+.message-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, #1890ff);
+}
+
+.send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: var(--spacing-sm);
   border: none;
-  border-radius: 4px;
-  background-color: #0084ff;
+  border-radius: var(--radius-md);
+  background-color: var(--primary-color, #1890ff);
   color: white;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.send-button:hover {
+  background-color: var(--primary-hover, #40a9ff);
+}
+
+.send-button:disabled {
+  background-color: var(--disabled-color, #d9d9d9);
+  cursor: not-allowed;
 }
 </style>
