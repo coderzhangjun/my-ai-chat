@@ -1,119 +1,200 @@
-import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
-import type { Message } from '../types/message';
-import { sendToDeepseekAPI } from '../api/deepseek';
+import { defineStore } from "pinia";
+import { ref, watch } from "vue";
+import type { Message } from "../types/message";
+import { sendToDeepseekAPI } from "../api/deepseek";
+import {
+  saveMessages,
+  getMessages,
+  deleteConversation,
+} from "../api/chatHistory";
 
-export const useChatStore = defineStore('chat', () => {
-  // 从 localStorage 加载消息，如果没有则使用空数组
-  const messages = ref<Message[]>(
-    JSON.parse(localStorage.getItem('chatMessages') || '[]')
+export const useChatStore = defineStore("chat", () => {
+  // From localStorage, load the current conversation ID or generate a new one
+  const currentConversationId = ref<string>(
+    localStorage.getItem("currentConversationId") || Date.now().toString()
   );
 
-  // 监听消息变化，保存到 localStorage
+  // From localStorage, load messages
+  const messages = ref<Message[]>(
+    JSON.parse(localStorage.getItem("chatMessages") || "[]")
+  );
+
+  // Loading state for conversations
+  const isLoading = ref<boolean>(false);
+
+  // Error message
+  const errorMessage = ref<string>("");
+
+  // Watch for changes to currentConversationId and save to localStorage
+  watch(currentConversationId, (newConversationId) => {
+    localStorage.setItem("currentConversationId", newConversationId);
+  });
+
+  // Watch for changes to messages and save to localStorage and backend
   watch(
     messages,
-    (newMessages) => {
-      localStorage.setItem('chatMessages', JSON.stringify(newMessages));
+    async (newMessages) => {
+      localStorage.setItem("chatMessages", JSON.stringify(newMessages));
+
+      // Only save to backend if there are messages
+      if (newMessages.length > 0) {
+        try {
+          // Create a title from the first user message if available
+          const firstUserMessage = newMessages.find(
+            (msg) => msg.role === "user"
+          );
+          const title = firstUserMessage
+            ? firstUserMessage.content.substring(0, 50) +
+              (firstUserMessage.content.length > 50 ? "..." : "")
+            : `Conversation ${new Date().toLocaleString()}`;
+
+          await saveMessages(newMessages, currentConversationId.value, title);
+        } catch (error) {
+          console.error("Failed to save messages to backend:", error);
+        }
+      }
     },
     { deep: true }
   );
 
-  // 发送消息到 AI
+  // Send message to AI
   const sendMessageToAI = async (text: string) => {
-    // 添加用户消息
+    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: text,
       timestamp: new Date().toISOString(),
     };
     messages.value.push(userMessage);
 
-    // 添加 AI 消息占位
+    // Add AI message placeholder
     const aiMessageId = (Date.now() + 1).toString();
     const aiMessage: Message = {
       id: aiMessageId,
-      role: 'assistant',
-      content: '',
+      role: "assistant",
+      content: "",
       timestamp: new Date().toISOString(),
       loading: true,
     };
     messages.value.push(aiMessage);
 
     try {
-      // 调用 API 获取 AI 响应
-      let responseContent = '';
-      
+      // Call API for AI response
+      let responseContent = "";
+
       await sendToDeepseekAPI(text, (chunk: string) => {
         try {
-          // 尝试解析 JSON 响应
+          // Try to parse JSON response
           const jsonData = JSON.parse(chunk);
-          
-          // 检查是否有有效的内容字段
+
+          // Check for valid content field
           if (jsonData.choices && jsonData.choices.content) {
             responseContent += jsonData.choices.content;
-          } else if (jsonData.data && jsonData.data.choices && jsonData.data.choices.content) {
+          } else if (
+            jsonData.data &&
+            jsonData.data.choices &&
+            jsonData.data.choices.content
+          ) {
             responseContent += jsonData.data.choices.content;
           } else if (jsonData.content) {
             responseContent += jsonData.content;
           } else {
-            // 如果没有找到预期的内容字段，尝试其他可能的字段
-            const possibleContentFields = ['content', 'text', 'message', 'response'];
+            // If expected content fields not found, try other possible fields
+            const possibleContentFields = [
+              "content",
+              "text",
+              "message",
+              "response",
+            ];
             for (const field of possibleContentFields) {
-              if (jsonData[field] && typeof jsonData[field] === 'string') {
+              if (jsonData[field] && typeof jsonData[field] === "string") {
                 responseContent += jsonData[field];
                 break;
               }
             }
           }
         } catch (e) {
-          // 如果不是 JSON 格式，直接添加文本内容
-          // 过滤掉可能的 JSON 字符串前缀
-          const cleanedChunk = chunk.replace(/^data:\s*/, '').trim();
-          if (cleanedChunk && cleanedChunk !== '[DONE]') {
+          // If not JSON format, add text content directly
+          // Filter possible JSON string prefix
+          const cleanedChunk = chunk.replace(/^data:\s*/, "").trim();
+          if (cleanedChunk && cleanedChunk !== "[DONE]") {
             responseContent += cleanedChunk;
           }
         }
-        
-        // 更新 AI 消息内容
-        const index = messages.value.findIndex(msg => msg.id === aiMessageId);
+
+        // Update AI message content
+        const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
         if (index !== -1) {
           messages.value[index].content = responseContent;
         }
       });
-      
-      // 完成后移除 loading 状态
-      const index = messages.value.findIndex(msg => msg.id === aiMessageId);
+
+      // Remove loading state when complete
+      const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
       if (index !== -1) {
         messages.value[index].loading = false;
       }
     } catch (error) {
-      console.error('Error sending message to AI:', error);
-      // 处理错误，更新 AI 消息为错误状态
-      const index = messages.value.findIndex(msg => msg.id === aiMessageId);
+      console.error("Error sending message to AI:", error);
+      // Handle error, update AI message to error state
+      const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
       if (index !== -1) {
-        messages.value[index].content = '抱歉，发生了错误，请稍后再试。';
+        messages.value[index].content = "抱歉，发生了错误，请稍后再试。";
         messages.value[index].loading = false;
         messages.value[index].error = true;
       }
     }
   };
 
-  // 清空聊天记录
-  const clearMessages = () => {
-    messages.value = [];
+  // Clear chat messages
+  const clearMessages = async () => {
+    try {
+      // Delete conversation from backend if it exists
+      if (messages.value.length > 0) {
+        await deleteConversation(currentConversationId.value);
+      }
+
+      // Clear local messages
+      messages.value = [];
+
+      // Generate a new conversation ID
+      currentConversationId.value = Date.now().toString();
+    } catch (error) {
+      console.error("Error clearing messages:", error);
+      errorMessage.value = "Failed to clear conversation";
+    }
   };
 
-  // 添加刷新按钮功能
-  const refreshChat = () => {
-    // 清空当前聊天记录并从 localStorage 重新加载
-    messages.value = JSON.parse(localStorage.getItem('chatMessages') || '[]');
+  // Load messages from a specific conversation
+  const loadConversation = async (conversationId: string) => {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    try {
+      const fetchedMessages = await getMessages(conversationId);
+
+      if (fetchedMessages.length > 0) {
+        messages.value = fetchedMessages;
+        currentConversationId.value = conversationId;
+      } else {
+        errorMessage.value = "No messages found for this conversation";
+      }
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+      errorMessage.value = "Failed to load conversation";
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {
     messages,
+    currentConversationId,
+    isLoading,
+    errorMessage,
     sendMessageToAI,
     clearMessages,
-    refreshChat,
+    loadConversation,
   };
 });

@@ -1,13 +1,25 @@
 <template>
   <!-- 应用的根容器 -->
   <div id="app">
-    <!-- 引入聊天窗口组件 -->
-    <ChatWindow />
+    <h1 class="app-title">AI 聊天助手</h1>
+
+    <div class="app-layout">
+      <!-- 左侧历史对话面板 -->
+      <aside class="sidebar">
+        <ConversationHistory />
+      </aside>
+
+      <!-- 右侧聊天窗口 -->
+      <main class="main-content">
+        <ChatWindow />
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import ChatWindow from "./components/ChatWindow.vue";
+import ConversationHistory from "./components/ConversationHistory.vue";
 </script>
 
 <style>
@@ -51,7 +63,7 @@ body {
 }
 
 #app {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: var(--spacing-md);
 }
@@ -61,6 +73,33 @@ body {
   text-align: center;
   margin-bottom: var(--spacing-lg);
   font-weight: 600;
+  font-size: 1.75rem;
+}
+
+/* 布局 */
+.app-layout {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.main-content {
+  flex: 1;
+}
+
+/* 移动端响应式布局 */
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
 }
 
 /* 添加一些基础动画 */
