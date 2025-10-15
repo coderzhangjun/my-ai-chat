@@ -7,6 +7,7 @@ import {
   getMessages,
   deleteConversation,
 } from "../api/chatHistory";
+import { useRoleStore } from "./roles";
 
 export const useChatStore = defineStore("chat", () => {
   // From localStorage, load the current conversation ID or generate a new one
@@ -59,6 +60,7 @@ export const useChatStore = defineStore("chat", () => {
 
   // Send message to AI
   const sendMessageToAI = async (text: string) => {
+    const roleStore = useRoleStore();
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -83,52 +85,58 @@ export const useChatStore = defineStore("chat", () => {
       // Call API for AI response
       let responseContent = "";
 
-      await sendToDeepseekAPI(text, (chunk: string) => {
-        try {
-          // Try to parse JSON response
-          const jsonData = JSON.parse(chunk);
+      await sendToDeepseekAPI(
+        text,
+        roleStore.currentRole.systemPrompt,
+        (chunk: string) => {
+          try {
+            // Try to parse JSON response
+            const jsonData = JSON.parse(chunk);
 
-          // Check for valid content field
-          if (jsonData.choices && jsonData.choices.content) {
-            responseContent += jsonData.choices.content;
-          } else if (
-            jsonData.data &&
-            jsonData.data.choices &&
-            jsonData.data.choices.content
-          ) {
-            responseContent += jsonData.data.choices.content;
-          } else if (jsonData.content) {
-            responseContent += jsonData.content;
-          } else {
-            // If expected content fields not found, try other possible fields
-            const possibleContentFields = [
-              "content",
-              "text",
-              "message",
-              "response",
-            ];
-            for (const field of possibleContentFields) {
-              if (jsonData[field] && typeof jsonData[field] === "string") {
-                responseContent += jsonData[field];
-                break;
+            // Check for valid content field
+            if (jsonData.choices && jsonData.choices.content) {
+              responseContent += jsonData.choices.content;
+            } else if (
+              jsonData.data &&
+              jsonData.data.choices &&
+              jsonData.data.choices.content
+            ) {
+              responseContent += jsonData.data.choices.content;
+            } else if (jsonData.content) {
+              responseContent += jsonData.content;
+            } else {
+              // If expected content fields not found, try other possible fields
+              const possibleContentFields = [
+                "content",
+                "text",
+                "message",
+                "response",
+              ];
+              for (const field of possibleContentFields) {
+                if (jsonData[field] && typeof jsonData[field] === "string") {
+                  responseContent += jsonData[field];
+                  break;
+                }
               }
             }
+          } catch (e) {
+            // If not JSON format, add text content directly
+            // Filter possible JSON string prefix
+            const cleanedChunk = chunk.replace(/^data:\s*/, "").trim();
+            if (cleanedChunk && cleanedChunk !== "[DONE]") {
+              responseContent += cleanedChunk;
+            }
           }
-        } catch (e) {
-          // If not JSON format, add text content directly
-          // Filter possible JSON string prefix
-          const cleanedChunk = chunk.replace(/^data:\s*/, "").trim();
-          if (cleanedChunk && cleanedChunk !== "[DONE]") {
-            responseContent += cleanedChunk;
-          }
-        }
 
-        // Update AI message content
-        const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
-        if (index !== -1) {
-          messages.value[index].content = responseContent;
+          // Update AI message content
+          const index = messages.value.findIndex(
+            (msg) => msg.id === aiMessageId
+          );
+          if (index !== -1) {
+            messages.value[index].content = responseContent;
+          }
         }
-      });
+      );
 
       // Remove loading state when complete
       const index = messages.value.findIndex((msg) => msg.id === aiMessageId);

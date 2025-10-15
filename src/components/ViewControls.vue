@@ -1,5 +1,6 @@
 <template>
   <div class="view-controls">
+    <RoleSelector />
     <AddButton v-if="showAddButton" @add="handleAdd" />
     <FullScreenButton :targetElementId="targetElementId" />
     <NewWindowButton />
@@ -7,28 +8,29 @@
 </template>
 
 <script setup lang="ts">
-import AddButton from './AddButton.vue';
-import FullScreenButton from './FullScreenButton.vue';
-import NewWindowButton from './NewWindowButton.vue';
+import AddButton from "./AddButton.vue";
+import FullScreenButton from "./FullScreenButton.vue";
+import NewWindowButton from "./NewWindowButton.vue";
+import RoleSelector from "./RoleSelector.vue";
 
 // 定义组件属性
 defineProps({
   showAddButton: {
     type: Boolean,
-    default: true
+    default: true,
   },
   targetElementId: {
     type: String,
-    default: ''
-  }
+    default: "",
+  },
 });
 
 // 定义事件
-const emit = defineEmits(['add']);
+const emit = defineEmits(["add"]);
 
 // 处理添加事件
 const handleAdd = () => {
-  emit('add');
+  emit("add");
 };
 </script>
 
@@ -36,6 +38,6 @@ const handleAdd = () => {
 .view-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 </style>
