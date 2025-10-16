@@ -56,6 +56,21 @@
               <span class="role-name">{{ role.name }}</span>
             </button>
             <button
+              class="edit-role"
+              @click.stop="openEditRoleDialog(role)"
+              title="编辑角色"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M11.333 2A2.122 2.122 0 0 1 14 4.667L5 13.667l-3.667.333.334-3.667L11.333 2z"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+            <button
               class="delete-role"
               @click.stop="deleteRole(role.id)"
               title="删除角色"
@@ -83,11 +98,12 @@
       @click="isDropdownOpen = false"
     ></div>
 
-    <!-- 新增角色弹窗 -->
+    <!-- 新增/编辑角色弹窗 -->
     <RoleDialog
       v-if="isDialogOpen"
-      @close="isDialogOpen = false"
-      @confirm="handleAddRole"
+      :edit-role="editingRole"
+      @close="closeDialog"
+      @confirm="handleSaveRole"
     />
   </div>
 </template>
@@ -96,12 +112,14 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRoleStore } from "../store/roles";
 import RoleDialog from "./RoleDialog.vue";
+import type { Role } from "../types/role";
 
 const roleStore = useRoleStore();
 
 // 响应式状态
 const isDropdownOpen = ref(false);
 const isDialogOpen = ref(false);
+const editingRole = ref<Role | undefined>(undefined);
 
 // 计算属性
 const currentRole = computed(() => roleStore.currentRole);
@@ -123,16 +141,39 @@ const deleteRole = (roleId: string) => {
 
 const openAddRoleDialog = () => {
   isDropdownOpen.value = false;
+  editingRole.value = undefined;
   isDialogOpen.value = true;
 };
 
-const handleAddRole = (roleData: {
+const openEditRoleDialog = (role: Role) => {
+  isDropdownOpen.value = false;
+  editingRole.value = role;
+  isDialogOpen.value = true;
+};
+
+const closeDialog = () => {
+  isDialogOpen.value = false;
+  editingRole.value = undefined;
+};
+
+const handleSaveRole = (roleData: {
+  id?: string;
   name: string;
   description: string;
   systemPrompt: string;
 }) => {
-  roleStore.addCustomRole(roleData);
-  isDialogOpen.value = false;
+  if (roleData.id) {
+    // 编辑模式
+    roleStore.updateCustomRole(roleData.id, {
+      name: roleData.name,
+      description: roleData.description,
+      systemPrompt: roleData.systemPrompt,
+    });
+  } else {
+    // 新增模式
+    roleStore.addCustomRole(roleData);
+  }
+  closeDialog();
 };
 
 // 键盘事件处理
@@ -254,6 +295,25 @@ onUnmounted(() => {
 }
 
 .role-item.active {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.edit-role {
+  padding: 4px 8px;
+  margin: 4px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.edit-role:hover {
   background: #e3f2fd;
   color: #1976d2;
 }

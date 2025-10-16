@@ -9,6 +9,9 @@ import {
 } from "../api/chatHistory";
 import { useRoleStore } from "./roles";
 
+// 上下文窗口大小：保留最近 20 条消息（约 10 轮对话）
+const MAX_CONTEXT_MESSAGES = 20;
+
 export const useChatStore = defineStore("chat", () => {
   // From localStorage, load the current conversation ID or generate a new one
   const currentConversationId = ref<string>(
@@ -37,8 +40,14 @@ export const useChatStore = defineStore("chat", () => {
     async (newMessages) => {
       localStorage.setItem("chatMessages", JSON.stringify(newMessages));
 
-      // Only save to backend if there are messages
+      // 仅在有消息时尝试保存到后端
       if (newMessages.length > 0) {
+        // === 新增：如果存在 loading 消息（流式中），则跳过保存，避免频繁写入 ===
+        const hasLoading = newMessages.some((msg) => msg.loading === true);
+        if (hasLoading) {
+          return;
+        }
+
         try {
           // Create a title from the first user message if available
           const firstUserMessage = newMessages.find(
@@ -81,81 +90,154 @@ export const useChatStore = defineStore("chat", () => {
     };
     messages.value.push(aiMessage);
 
-    try {
-      // Call API for AI response
-      let responseContent = "";
+    // === 流式配置 ===
+    const TYPEWRITER_MODE = false; // true=打字机模式(更慢更明显), false=节流模式(更快)
+    const UPDATE_INTERVAL = 150; // 节流模式的更新间隔（毫秒）- 调大让流式更明显
+    const TYPEWRITER_SPEED = 30; // 打字机模式：每个字符显示间隔（毫秒）
 
-      await sendToDeepseekAPI(
-        text,
-        roleStore.currentRole.systemPrompt,
-        (chunk: string) => {
-          try {
-            // Try to parse JSON response
-            const jsonData = JSON.parse(chunk);
+    let contentBuffer = ""; // 累积从 API 返回的内容
+    let displayedLength = 0; // 已经显示的字符长度
+    let lastUpdateTime = 0;
+    let chunkCount = 0;
+    let typewriterTimer: number | null = null; // 打字机定时器
 
-            // Check for valid content field
-            if (jsonData.choices && jsonData.choices.content) {
-              responseContent += jsonData.choices.content;
-            } else if (
-              jsonData.data &&
-              jsonData.data.choices &&
-              jsonData.data.choices.content
-            ) {
-              responseContent += jsonData.data.choices.content;
-            } else if (jsonData.content) {
-              responseContent += jsonData.content;
-            } else {
-              // If expected content fields not found, try other possible fields
-              const possibleContentFields = [
-                "content",
-                "text",
-                "message",
-                "response",
-              ];
-              for (const field of possibleContentFields) {
-                if (jsonData[field] && typeof jsonData[field] === "string") {
-                  responseContent += jsonData[field];
-                  break;
-                }
-              }
-            }
-          } catch (e) {
-            // If not JSON format, add text content directly
-            // Filter possible JSON string prefix
-            const cleanedChunk = chunk.replace(/^data:\s*/, "").trim();
-            if (cleanedChunk && cleanedChunk !== "[DONE]") {
-              responseContent += cleanedChunk;
-            }
-          }
+    console.log(
+      `🚀 [流式输出] 开始请求 AI (模式: ${
+        TYPEWRITER_MODE ? "打字机" : "节流"
+      })...`
+    );
 
-          // Update AI message content
-          const index = messages.value.findIndex(
-            (msg) => msg.id === aiMessageId
+    // 打字机效果：逐字显示函数
+    const startTypewriter = () => {
+      if (typewriterTimer) return; // 已经在运行
+
+      typewriterTimer = setInterval(() => {
+        if (displayedLength >= contentBuffer.length) {
+          // 已经显示完所有内容，但可能还有新内容到来，继续等待
+          return;
+        }
+
+        // 每次增加 1-3 个字符（随机，更自然）
+        const step = Math.floor(Math.random() * 3) + 1;
+        displayedLength = Math.min(
+          displayedLength + step,
+          contentBuffer.length
+        );
+
+        const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
+        if (index !== -1) {
+          messages.value[index].content = contentBuffer.substring(
+            0,
+            displayedLength
           );
-          if (index !== -1) {
-            messages.value[index].content = responseContent;
+          console.log(
+            `⌨️ [打字机] 显示进度: ${displayedLength}/${contentBuffer.length}`
+          );
+        }
+      }, TYPEWRITER_SPEED);
+    };
+
+    // 停止打字机
+    const stopTypewriter = () => {
+      if (typewriterTimer) {
+        clearInterval(typewriterTimer);
+        typewriterTimer = null;
+        console.log("⏹️ [打字机] 停止");
+      }
+    };
+
+    try {
+      // 准备上下文消息
+      const contextMessages = messages.value
+        .slice(0, -1)
+        .filter((msg) => !msg.loading && !msg.error)
+        .slice(-MAX_CONTEXT_MESSAGES);
+
+      // 启动打字机效果（如果启用）
+      if (TYPEWRITER_MODE) {
+        startTypewriter();
+      }
+
+      // Call API for AI response
+      await sendToDeepseekAPI(
+        contextMessages,
+        roleStore.currentRole.systemPrompt,
+        // === onChunk 回调：接收流式数据 ===
+        (chunk: string) => {
+          chunkCount++;
+          contentBuffer += chunk;
+
+          // 开发调试：显示接收到的chunk（可选）
+          if (chunkCount <= 3 || chunkCount % 10 === 0) {
+            console.log(
+              `📦 [Chunk #${chunkCount}] Buffer总长: ${contentBuffer.length}`
+            );
           }
+
+          // 如果是节流模式，按间隔更新
+          if (!TYPEWRITER_MODE) {
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastUpdateTime;
+
+            // 第一次立即更新，或者达到更新间隔时更新
+            if (
+              lastUpdateTime === 0 ||
+              timeSinceLastUpdate >= UPDATE_INTERVAL
+            ) {
+              const index = messages.value.findIndex(
+                (msg) => msg.id === aiMessageId
+              );
+              if (index !== -1) {
+                messages.value[index].content = contentBuffer;
+                console.log(
+                  `✨ [节流更新] 显示内容长度: ${contentBuffer.length}，间隔: ${timeSinceLastUpdate}ms`
+                );
+              }
+              lastUpdateTime = now;
+            }
+          }
+          // 打字机模式下，定时器会自动处理显示
         }
       );
 
-      // Remove loading state when complete
+      console.log(
+        `✅ [流式完成] 共收到 ${chunkCount} 个chunk，总长度: ${contentBuffer.length}`
+      );
+
+      // 如果是打字机模式，等待所有内容显示完成
+      if (TYPEWRITER_MODE) {
+        console.log("⏳ [打字机] 等待显示完成...");
+        // 等待打字机显示完所有内容
+        while (displayedLength < contentBuffer.length) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        stopTypewriter();
+      }
+
+      // === 流式结束后，确保最终内容和状态更新 ===
       const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
       if (index !== -1) {
+        messages.value[index].content = contentBuffer; // 保证收尾完整
         messages.value[index].loading = false;
+        console.log("🎉 [完成] 设置 loading = false，准备保存到后端");
       }
     } catch (error) {
-      console.error("Error sending message to AI:", error);
+      console.error("❌ [错误] 发送消息失败:", error);
+
+      // 清理打字机定时器
+      stopTypewriter();
+
       // Handle error, update AI message to error state
       const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
       if (index !== -1) {
         messages.value[index].content = "抱歉，发生了错误，请稍后再试。";
         messages.value[index].loading = false;
-        messages.value[index].error = true;
+        (messages.value[index] as any).error = true;
       }
     }
   };
 
-  // Clear chat messages
+  // Clear chat messages (删除当前对话)
   const clearMessages = async () => {
     try {
       // Delete conversation from backend if it exists
@@ -168,10 +250,24 @@ export const useChatStore = defineStore("chat", () => {
 
       // Generate a new conversation ID
       currentConversationId.value = Date.now().toString();
+
+      // 触发历史列表更新
+      window.dispatchEvent(new CustomEvent("conversation-updated"));
     } catch (error) {
       console.error("Error clearing messages:", error);
       errorMessage.value = "Failed to clear conversation";
     }
+  };
+
+  // Start new conversation (开始新对话，保留旧对话)
+  const startNewConversation = async () => {
+    // 当前对话会自动通过 watch 保存到后端
+    // 直接清空消息数组并生成新的对话 ID
+    messages.value = [];
+    currentConversationId.value = Date.now().toString();
+
+    // 触发自定义事件，通知历史列表更新
+    window.dispatchEvent(new CustomEvent("conversation-updated"));
   };
 
   // Load messages from a specific conversation
@@ -203,6 +299,7 @@ export const useChatStore = defineStore("chat", () => {
     errorMessage,
     sendMessageToAI,
     clearMessages,
+    startNewConversation,
     loadConversation,
   };
 });

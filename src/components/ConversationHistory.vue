@@ -23,24 +23,47 @@
         :class="{
           active: conversation.conversationId === currentConversationId,
         }"
-        @click="loadConversation(conversation.conversationId)"
       >
-        <div class="conversation-title">{{ conversation.title }}</div>
-        <div class="conversation-date">
-          {{ formatDate(conversation.createdAt) }}
+        <div
+          class="conversation-content"
+          @click="loadConversation(conversation.conversationId)"
+        >
+          <div class="conversation-title">{{ conversation.title }}</div>
+          <div class="conversation-date">
+            {{ formatDate(conversation.createdAt) }}
+          </div>
         </div>
+        <button
+          class="delete-button"
+          @click.stop="handleDeleteConversation(conversation.conversationId)"
+          title="删除对话"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
       </li>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { getConversations } from "../api/chatHistory";
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import { getConversations, deleteConversation } from "../api/chatHistory";
 import { useChatStore } from "../store/chat";
 
 const chatStore = useChatStore();
-const currentConversationId = chatStore.currentConversationId;
+const currentConversationId = computed(() => chatStore.currentConversationId);
 
 const conversations = ref<any[]>([]);
 const isLoading = ref(false);
@@ -61,8 +84,8 @@ const loadConversation = async (conversationId: string) => {
   await chatStore.loadConversation(conversationId);
 };
 
-// Fetch conversations on mount
-onMounted(async () => {
+// Fetch conversations
+const fetchConversations = async () => {
   isLoading.value = true;
   errorMessage.value = "";
 
@@ -74,6 +97,43 @@ onMounted(async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+// Delete conversation
+const handleDeleteConversation = async (conversationId: string) => {
+  if (!confirm("确定要删除这个对话吗？此操作不可恢复。")) {
+    return;
+  }
+
+  try {
+    const success = await deleteConversation(conversationId);
+    if (success) {
+      // 如果删除的是当前对话，则清空当前消息
+      if (conversationId === currentConversationId.value) {
+        chatStore.startNewConversation();
+      }
+      // 重新加载对话列表
+      await fetchConversations();
+    } else {
+      alert("删除对话失败，请重试");
+    }
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
+    alert("删除对话时出错");
+  }
+};
+
+// Fetch conversations on mount
+onMounted(async () => {
+  await fetchConversations();
+
+  // 监听对话更新事件
+  window.addEventListener("conversation-updated", fetchConversations);
+});
+
+// 清理事件监听
+onUnmounted(() => {
+  window.removeEventListener("conversation-updated", fetchConversations);
 });
 </script>
 
@@ -103,12 +163,15 @@ onMounted(async () => {
 }
 
 .conversation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--spacing-sm);
   border-radius: var(--radius-sm);
-  cursor: pointer;
   margin-bottom: var(--spacing-xs);
   transition: all 0.2s ease;
   border-left: 3px solid transparent;
+  gap: 8px;
 }
 
 .conversation-item:hover {
@@ -118,6 +181,12 @@ onMounted(async () => {
 .conversation-item.active {
   border-left-color: var(--primary-color);
   background-color: rgba(0, 132, 255, 0.08);
+}
+
+.conversation-content {
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
 }
 
 .conversation-title {
@@ -131,6 +200,31 @@ onMounted(async () => {
 .conversation-date {
   font-size: 12px;
   color: #666;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #999;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.conversation-item:hover .delete-button {
+  opacity: 1;
+}
+
+.delete-button:hover {
+  background: #fee;
+  color: #e53935;
 }
 
 .loading {

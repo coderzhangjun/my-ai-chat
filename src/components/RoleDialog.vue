@@ -2,7 +2,7 @@
   <div class="dialog-overlay" @click.self="$emit('close')">
     <div class="dialog">
       <div class="dialog-header">
-        <h3>添加自定义角色</h3>
+        <h3>{{ isEditMode ? "编辑角色" : "添加自定义角色" }}</h3>
         <button class="close-button" @click="$emit('close')">×</button>
       </div>
 
@@ -50,7 +50,7 @@
             取消
           </button>
           <button type="submit" class="confirm-button" :disabled="!isFormValid">
-            添加角色
+            {{ isEditMode ? "保存" : "添加角色" }}
           </button>
         </div>
       </form>
@@ -59,13 +59,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
+import type { Role } from "../types/role";
+
+// Props 定义
+const props = defineProps<{
+  editRole?: Role;
+}>();
 
 // 事件定义
 const emit = defineEmits<{
   close: [];
   confirm: [
-    roleData: { name: string; description: string; systemPrompt: string }
+    roleData: {
+      id?: string;
+      name: string;
+      description: string;
+      systemPrompt: string;
+    }
   ];
 }>();
 
@@ -75,6 +86,24 @@ const formData = ref({
   description: "",
   systemPrompt: "",
 });
+
+// 是否为编辑模式
+const isEditMode = computed(() => !!props.editRole);
+
+// 监听 editRole 变化，用于编辑模式下的数据初始化
+watch(
+  () => props.editRole,
+  (role) => {
+    if (role) {
+      formData.value = {
+        name: role.name,
+        description: role.description,
+        systemPrompt: role.systemPrompt,
+      };
+    }
+  },
+  { immediate: true }
+);
 
 // 表单验证
 const isFormValid = computed(() => {
@@ -88,11 +117,21 @@ const isFormValid = computed(() => {
 const handleSubmit = () => {
   if (!isFormValid.value) return;
 
-  emit("confirm", {
+  const roleData = {
     name: formData.value.name.trim(),
     description: formData.value.description.trim(),
     systemPrompt: formData.value.systemPrompt.trim(),
-  });
+  };
+
+  // 如果是编辑模式，附加角色 ID
+  if (props.editRole) {
+    emit("confirm", {
+      id: props.editRole.id,
+      ...roleData,
+    });
+  } else {
+    emit("confirm", roleData);
+  }
 };
 
 // 键盘事件处理

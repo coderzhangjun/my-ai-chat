@@ -7,11 +7,33 @@
         <h2 class="chat-title">聊天对话</h2>
       </div>
       <div class="header-controls">
-        <!-- 添加清除按钮 -->
+        <!-- 开始新对话按钮 -->
+        <button
+          class="new-chat-button"
+          @click="handleNewChat"
+          title="开始新对话"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            ></path>
+            <line x1="12" y1="9" x2="12" y2="15"></line>
+            <line x1="9" y1="12" x2="15" y2="12"></line>
+          </svg>
+        </button>
+        <!-- 清除按钮 -->
         <button
           class="clear-button"
           @click="handleClearChat"
-          title="清除聊天记录"
+          title="清除当前对话"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -47,7 +69,7 @@
       <!-- 遍历 Pinia store 中的消息数组，使用 ChatMessage 展示每条消息 -->
       <ChatMessage
         v-for="(msg, index) in messages"
-        :key="index"
+        :key="msg.id"
         :message="msg"
         :class="{ 'message-appear': true }"
         :style="{ animationDelay: `${index * 0.1}s` }"
@@ -60,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, computed } from "vue";
 import { useChatStore } from "../store/chat";
 import ChatMessage from "./ChatMessage.vue";
 import ChatInput from "./ChatInput.vue";
@@ -68,7 +90,8 @@ import ViewControls from "./ViewControls.vue";
 
 // 获取 Pinia 中的 chat store
 const chatStore = useChatStore();
-const messages = chatStore.messages;
+// 使用 computed 确保响应式
+const messages = computed(() => chatStore.messages);
 
 /**
  * 当发送新消息时：
@@ -79,6 +102,18 @@ const handleSendMessage = async (text: string) => {
   await chatStore.sendMessageToAI(text);
 };
 
+// 处理开始新对话
+const handleNewChat = async () => {
+  if (messages.value.length === 0) {
+    // 如果当前没有消息，无需操作
+    return;
+  }
+
+  if (confirm("开始新对话？当前对话将自动保存到历史记录。")) {
+    await chatStore.startNewConversation();
+  }
+};
+
 // 处理添加新聊天的方法（如果需要）
 const handleAddChat = () => {
   // 实现添加新聊天的逻辑
@@ -86,9 +121,9 @@ const handleAddChat = () => {
 };
 
 // 处理清除聊天记录
-const handleClearChat = () => {
-  if (confirm("确定要清除所有聊天记录吗？此操作不可恢复。")) {
-    chatStore.clearMessages();
+const handleClearChat = async () => {
+  if (confirm("确定要清除当前对话吗？此操作不可恢复。")) {
+    await chatStore.clearMessages();
   }
 };
 
@@ -104,208 +139,171 @@ const scrollToBottom = () => {
 
 // 监听消息变化，更新滚动位置
 watch(
-  () => messages.length,
+  () => [
+    messages.value.length,
+    messages.value[messages.value.length - 1]?.content,
+  ],
   () => {
+    console.log("🔄 [ChatWindow] Watch触发，消息数:", messages.value.length);
     scrollToBottom();
   }
 );
 </script>
 
 <style scoped>
-/* 聊天窗口整体布局 */
 .chat-window {
   display: flex;
   flex-direction: column;
   height: 100vh;
   max-height: 700px;
-  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
   overflow: hidden;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
 }
 
-/* 标题栏样式 */
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 12px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e5e5;
   position: relative;
   z-index: 10;
-  overflow: visible;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .status-indicator {
-  width: 8px;
-  height: 8px;
-  background: linear-gradient(45deg, #00d4aa, #00c4a7);
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 212, 170, 0.3);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.1);
-  }
+  display: none;
 }
 
 .chat-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 14px;
+  font-weight: 500;
+  color: #353740;
 }
 
-/* 标题栏控制按钮组 */
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
-/* 清除按钮样式 */
+.new-chat-button,
 .clear-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent;
   cursor: pointer;
-  color: #666;
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #6e6e80;
+  border-radius: 6px;
+  transition: all 0.15s ease;
 }
 
+.new-chat-button:hover,
 .clear-button:hover {
-  background: rgba(245, 34, 45, 0.1);
-  color: #f5222d;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(245, 34, 45, 0.15);
+  background: #f7f7f8;
+  color: #353740;
 }
 
-/* 消息区域样式 */
+.new-chat-button:hover {
+  color: #10a37f;
+}
+
 .messages {
   flex: 1;
-  padding: 24px;
+  padding: 0;
   overflow-y: auto;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(248, 250, 252, 0.95) 100%
-  );
+  background: #ffffff;
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 }
 
-/* 欢迎消息样式 */
 .welcome-message {
   text-align: center;
-  padding: 60px 20px;
-  color: #666;
-  max-width: 400px;
+  padding: 80px 20px;
+  color: #6e6e80;
+  max-width: 500px;
   margin: 0 auto;
 }
 
 .welcome-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+  font-size: 32px;
+  margin-bottom: 16px;
 }
 
 .welcome-message h3 {
-  margin: 0 0 12px 0;
-  font-size: 24px;
+  margin: 0 0 8px 0;
+  font-size: 20px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #353740;
 }
 
 .welcome-message p {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.6;
-  opacity: 0.8;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6e6e80;
 }
 
-/* 消息出现动画 */
 .message-appear {
-  animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fadeIn 0.2s ease forwards;
 }
 
-@keyframes fadeInUp {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
-/* 滚动条样式 */
 .messages::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .messages::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .messages::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #667eea, #764ba2);
-  border-radius: 3px;
+  background: #d1d5db;
+  border-radius: 4px;
 }
 
 .messages::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #5a67d8, #6b46c1);
+  background: #9ca3af;
 }
 
-/* 响应式：移动端样式调整 */
 @media (max-width: 768px) {
   .chat-window {
-    max-height: calc(100vh - 40px);
-    border-radius: 16px;
+    max-height: 100vh;
+    border: none;
   }
 
   .chat-header {
-    padding: 16px 20px;
+    padding: 12px 16px;
   }
 
   .messages {
-    padding: 20px 16px;
+    padding: 0;
   }
 
   .welcome-message {
-    padding: 40px 16px;
+    padding: 60px 16px;
   }
 }
 </style>

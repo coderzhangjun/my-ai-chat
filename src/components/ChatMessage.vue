@@ -34,19 +34,23 @@
           </svg>
         </button>
       </div>
+      <!-- 流式输出：有内容就显示，即使还在 loading 中 -->
       <div
         class="message-text"
-        v-if="!message.loading"
+        v-if="message.content || !message.loading"
         v-html="renderedHtml"
+        :class="{ streaming: message.loading && message.content }"
       ></div>
-      <div class="message-loading" v-else>
+
+      <!-- 只在开始加载且还没有任何内容时显示 loading 动画 -->
+      <div class="message-loading" v-if="message.loading && !message.content">
         <div class="loading-content">
           <div class="typing-indicator">
             <div class="typing-dot"></div>
             <div class="typing-dot"></div>
             <div class="typing-dot"></div>
           </div>
-          <span class="loading-text">正在输入...</span>
+          <span class="loading-text">正在思考...</span>
         </div>
       </div>
     </div>
@@ -225,6 +229,32 @@ const copyMessage = async () => {
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
+  position: relative;
+}
+
+/* 流式输出时的光标效果 */
+.message-text.streaming::after {
+  content: "▋";
+  display: inline-block;
+  margin-left: 2px;
+  animation: cursorBlink 1s infinite;
+  color: var(--primary-color);
+  font-weight: bold;
+}
+
+.message.user .message-text.streaming::after {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes cursorBlink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 /* 标题样式 */
