@@ -165,7 +165,14 @@ export const useChatStore = defineStore("chat", () => {
         // === onChunk 回调：接收流式数据 ===
         (chunk: string) => {
           chunkCount++;
-          contentBuffer += chunk;
+          // 确保 chunk 是字符串
+          const safeChunk =
+            chunk === null || chunk === undefined
+              ? ""
+              : typeof chunk === "object"
+              ? JSON.stringify(chunk)
+              : String(chunk);
+          contentBuffer += safeChunk;
 
           // 开发调试：显示接收到的chunk（可选）
           if (chunkCount <= 3 || chunkCount % 10 === 0) {

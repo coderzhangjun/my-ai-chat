@@ -47,8 +47,29 @@ marked.use({ renderer });
 /**
  * 将 Markdown 渲染为 HTML
  */
-export const renderMarkdownToHtml = (markdown: string): string => {
-  if (!markdown) return "";
+export const renderMarkdownToHtml = (markdown: any): string => {
+  // 类型守卫：确保输入是有效的字符串
+  if (markdown === null || markdown === undefined) {
+    return "";
+  }
+
+  // 如果是对象，尝试转换为 JSON 字符串
+  if (typeof markdown === "object") {
+    console.warn("⚠️ [Markdown] 收到对象类型，尝试转换:", markdown);
+    try {
+      markdown = JSON.stringify(markdown, null, 2);
+    } catch (e) {
+      console.error("❌ [Markdown] 对象序列化失败:", e);
+      return "<p>内容格式错误</p>";
+    }
+  }
+
+  // 确保是字符串
+  markdown = String(markdown);
+
+  if (!markdown || markdown.trim() === "") {
+    return "";
+  }
 
   try {
     const html = marked.parse(markdown);

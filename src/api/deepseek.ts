@@ -117,16 +117,31 @@ export const sendToDeepseekAPI = async (
               let content = "";
 
               // 处理思考内容（如果存在）
-              if (
-                delta.reasoning_content &&
-                typeof delta.reasoning_content === "string"
-              ) {
-                content = delta.reasoning_content;
+              if (delta.reasoning_content) {
+                if (typeof delta.reasoning_content === "string") {
+                  content = delta.reasoning_content;
+                } else if (typeof delta.reasoning_content === "object") {
+                  // 如果是对象，尝试转换
+                  console.warn(
+                    "⚠️ [API] reasoning_content 是对象:",
+                    delta.reasoning_content
+                  );
+                  content = JSON.stringify(delta.reasoning_content);
+                }
               }
 
               // 处理正常回答内容（优先级更高）
-              if (delta.content && typeof delta.content === "string") {
-                content = delta.content;
+              if (delta.content !== undefined && delta.content !== null) {
+                if (typeof delta.content === "string") {
+                  content = delta.content;
+                } else if (typeof delta.content === "object") {
+                  // 如果是对象，尝试转换
+                  console.warn("⚠️ [API] content 是对象:", delta.content);
+                  content = JSON.stringify(delta.content);
+                } else {
+                  // 其他类型，转换为字符串
+                  content = String(delta.content);
+                }
               }
 
               if (content) {

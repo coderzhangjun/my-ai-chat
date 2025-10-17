@@ -79,19 +79,25 @@
     <!-- 消息输入组件，发送消息时触发 handleSendMessage 方法 -->
     <ChatInput @sendMessage="handleSendMessage" />
   </div>
+
+  <!-- 滚动控制按钮（放在外面，使用 Teleport 到 body） -->
+  <ScrollButtons :targetElement="messagesContainer" />
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, computed } from "vue";
+import { ref, nextTick, watch, computed, onMounted } from "vue";
 import { useChatStore } from "../store/chat";
 import ChatMessage from "./ChatMessage.vue";
 import ChatInput from "./ChatInput.vue";
 import ViewControls from "./ViewControls.vue";
+import ScrollButtons from "./ScrollButtons.vue";
 
 // 获取 Pinia 中的 chat store
 const chatStore = useChatStore();
 // 使用 computed 确保响应式
 const messages = computed(() => chatStore.messages);
+
+console.log("🏗️ [ChatWindow] 组件初始化");
 
 /**
  * 当发送新消息时：
@@ -129,6 +135,33 @@ const handleClearChat = async () => {
 
 // 自动滚动到最新消息，保证对话窗口始终显示最新消息
 const messagesContainer = ref<HTMLDivElement | null>(null);
+
+console.log("📝 [ChatWindow] messagesContainer ref 创建:", messagesContainer);
+console.log(
+  "📝 [ChatWindow] messagesContainer 是 Ref?",
+  "value" in messagesContainer
+);
+
+// 在组件挂载后输出调试信息
+onMounted(() => {
+  console.log("🎬 [ChatWindow] 组件已挂载");
+  console.log("📦 [ChatWindow] messagesContainer ref:", messagesContainer);
+  console.log(
+    "📦 [ChatWindow] messagesContainer.value:",
+    messagesContainer.value
+  );
+  if (messagesContainer.value) {
+    console.log("✅ [ChatWindow] messagesContainer 元素存在");
+    console.log("📏 [ChatWindow] 元素尺寸:", {
+      scrollHeight: messagesContainer.value.scrollHeight,
+      clientHeight: messagesContainer.value.clientHeight,
+      scrollTop: messagesContainer.value.scrollTop,
+    });
+  } else {
+    console.error("❌ [ChatWindow] messagesContainer 元素不存在！");
+  }
+});
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (messagesContainer.value) {

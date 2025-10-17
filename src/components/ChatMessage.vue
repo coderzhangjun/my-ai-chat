@@ -68,9 +68,22 @@ const props = defineProps<{
 }>();
 
 // Markdown 渲染后的安全 HTML（已做转义与规则控制）
-const renderedHtml = computed(() =>
-  renderMarkdownToHtml(props.message.content)
-);
+const renderedHtml = computed(() => {
+  // 额外的类型守卫，确保 content 是有效的
+  const content = props.message?.content;
+
+  if (content === null || content === undefined) {
+    return "";
+  }
+
+  // 如果 content 是对象，转换为 JSON 字符串
+  if (typeof content === "object") {
+    console.warn("⚠️ [ChatMessage] content 是对象，转换为字符串:", content);
+    return renderMarkdownToHtml(JSON.stringify(content, null, 2));
+  }
+
+  return renderMarkdownToHtml(String(content));
+});
 
 // 格式化时间
 const formatTime = (timestamp: string) => {
@@ -81,7 +94,14 @@ const formatTime = (timestamp: string) => {
 // 复制消息内容
 const copyMessage = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content);
+    // 确保 content 是字符串
+    const content = props.message?.content;
+    const textToCopy =
+      typeof content === "object"
+        ? JSON.stringify(content, null, 2)
+        : String(content || "");
+
+    await navigator.clipboard.writeText(textToCopy);
     // 可以添加一个复制成功的提示
     console.log("已复制到剪贴板");
   } catch (err) {
