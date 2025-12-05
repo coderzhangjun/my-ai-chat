@@ -261,10 +261,9 @@ const handleImageUpload = async (event: Event) => {
 
 <style scoped>
 .chat-input-container {
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 16px 18px;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
 }
 
 .chat-input {
@@ -274,26 +273,25 @@ const handleImageUpload = async (event: Event) => {
 .input-wrapper {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  padding: 4px;
-  border: 2px solid transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  gap: 10px;
+  background: #f7f7f8;
+  border-radius: 14px;
+  padding: 6px;
+  border: 1px solid #d9d9e3;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .input-wrapper:focus-within {
-  border-color: #667eea;
-  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.15);
-  background: white;
+  border-color: #10a37f;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.12);
+  background: #ffffff;
 }
 
 .message-textarea {
   flex: 1;
-  padding: 14px 18px;
+  padding: 12px 14px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
     sans-serif;
   font-size: 15px;
@@ -322,7 +320,7 @@ const handleImageUpload = async (event: Event) => {
 .input-actions {
   display: flex;
   gap: 8px;
-  padding: 4px;
+  padding: 2px;
 }
 
 /* 上传按钮样式 */
@@ -330,23 +328,21 @@ const handleImageUpload = async (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #e2e8f0;
-  color: #718096;
+  transition: all 0.2s ease;
+  background: #ececf1;
+  color: #4b5563;
   position: relative;
   overflow: hidden;
 }
 
 .upload-button:hover:not(:disabled) {
-  background: #cbd5e0;
-  color: #4a5568;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: #e1e1e6;
+  color: #111827;
 }
 
 .upload-button:active:not(:disabled) {
@@ -372,14 +368,14 @@ const handleImageUpload = async (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #e2e8f0;
-  color: #a0aec0;
+  transition: all 0.2s ease;
+  background: #ececf1;
+  color: #9ca3af;
   position: relative;
   overflow: hidden;
 }
@@ -391,16 +387,15 @@ const handleImageUpload = async (event: Event) => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #10a37f, #0e8f70);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
 .send-button.send-ready {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #10a37f, #0e8f70);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(16, 163, 127, 0.35);
 }
 
 .send-button.send-ready::before {
@@ -408,8 +403,7 @@ const handleImageUpload = async (event: Event) => {
 }
 
 .send-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+  transform: translateY(-1px);
 }
 
 .send-button:active:not(:disabled) {
@@ -457,22 +451,20 @@ const handleImageUpload = async (event: Event) => {
 .input-hint {
   display: flex;
   justify-content: center;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .hint-text {
   font-size: 12px;
-  color: #a0aec0;
-  background: rgba(255, 255, 255, 0.6);
-  padding: 6px 12px;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
+  color: #6b7280;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 14px;
+  transition: color 0.2s ease;
 }
 
 .input-wrapper:focus-within + .input-hint .hint-text {
-  color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
+  color: #10a37f;
 }
 
 /* 滚动条样式 */

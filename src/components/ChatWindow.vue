@@ -6,6 +6,9 @@
         <div class="status-indicator"></div>
         <h2 class="chat-title">聊天对话</h2>
       </div>
+      <div class="header-middle">
+        <ModelSelector />
+      </div>
       <div class="header-controls">
         <!-- 开始新对话按钮 -->
         <button
@@ -91,6 +94,7 @@ import ChatMessage from "./ChatMessage.vue";
 import ChatInput from "./ChatInput.vue";
 import ViewControls from "./ViewControls.vue";
 import ScrollButtons from "./ScrollButtons.vue";
+import ModelSelector from "./ModelSelector.vue";
 
 // 获取 Pinia 中的 chat store
 const chatStore = useChatStore();
@@ -187,20 +191,22 @@ watch(
 .chat-window {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-height: 700px;
+  min-height: 560px;
+  max-height: 78vh;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #ececf1;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 14px 18px;
   background: #ffffff;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid #ececf1;
   position: relative;
   z-index: 10;
 }
@@ -211,6 +217,13 @@ watch(
   gap: 8px;
 }
 
+.header-middle {
+  flex: 1;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+}
+
 .status-indicator {
   display: none;
 }
@@ -218,14 +231,14 @@ watch(
 .chat-title {
   margin: 0;
   font-size: 14px;
-  font-weight: 500;
-  color: #353740;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .new-chat-button,
@@ -233,31 +246,32 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
   cursor: pointer;
   color: #6e6e80;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.15s ease;
 }
 
 .new-chat-button:hover,
 .clear-button:hover {
-  background: #f7f7f8;
-  color: #353740;
+  background: #f0f2f5;
+  color: #111827;
 }
 
 .new-chat-button:hover {
   color: #10a37f;
+  border-color: #cce6dd;
 }
 
 .messages {
   flex: 1;
-  padding: 0;
+  padding: 8px 0 0;
   overflow-y: auto;
-  background: #ffffff;
+  background: #f7f7f8;
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
@@ -268,7 +282,7 @@ watch(
   text-align: center;
   padding: 80px 20px;
   color: #6e6e80;
-  max-width: 500px;
+  max-width: 520px;
   margin: 0 auto;
 }
 
@@ -323,12 +337,14 @@ watch(
 
 @media (max-width: 768px) {
   .chat-window {
-    max-height: 100vh;
-    border: none;
+    min-height: 0;
+    height: calc(100vh - 110px);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
   }
 
   .chat-header {
-    padding: 12px 16px;
+    padding: 12px 14px;
   }
 
   .messages {
@@ -336,7 +352,7 @@ watch(
   }
 
   .welcome-message {
-    padding: 60px 16px;
+    padding: 48px 16px;
   }
 }
 </style>

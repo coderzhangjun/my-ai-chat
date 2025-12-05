@@ -1,34 +1,34 @@
 import type { Message } from "../types/message";
 
-// API 消息格式
 interface APIMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-// 发送消息到 DeepSeek API 并处理流式响应
+export interface DeepseekOptions {
+  apiKey: string;
+  model?: string;
+  baseUrl?: string;
+}
+
 export const sendToDeepseekAPI = async (
   conversationMessages: Message[],
   systemPrompt: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  options: DeepseekOptions
 ): Promise<void> => {
   try {
-    // 1. 确认 baseUrl 与 endpoint：下面示例假设官方提供的 Chat Completion 接口为：
-    //    https://api.deepseek.com/v1/chat/completions
-    //    若文档有不同，请自行调整
-    const baseUrl = "https://api.deepseek.com";
+    const baseUrl = options.baseUrl || "https://api.deepseek.com";
     const endpoint = "/v1/chat/completions";
+    const apiKey = options.apiKey;
+    const modelName = options.model || "deepseek-reasoner";
 
-    // 2. 替换为你的 DeepSeek API Key
-    const API_KEY = "sk-1f14395493b147fda9bcec3ae04e6126";
+    if (!apiKey) {
+      throw new Error("缺少 DeepSeek API Key");
+    }
 
-    // 3. 选择合适的模型名称（如 "DeepSeek-R1" 或 "DeepSeek-V3"）
-    const modelName = "deepseek-reasoner";
-
-    // 4. 构造消息数组：系统提示 + 历史对话
     const enhancedSystemPrompt = systemPrompt || "你是一个有帮助的AI助手";
 
-    // 过滤掉 loading 和 error 状态的消息，并映射为 API 格式
     const apiMessages: APIMessage[] = [
       {
         role: "system",
@@ -46,20 +46,17 @@ export const sendToDeepseekAPI = async (
       `📤 [API] 发送请求，上下文消息数: ${conversationMessages.length}`
     );
 
-    // 5. 构造请求体
     const requestBody = {
       model: modelName,
       messages: apiMessages,
       stream: true,
     };
 
-    // 5. 发起请求
     const response = await fetch(baseUrl + endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // DeepSeek 同样使用 Bearer Token 进行认证
-        Authorization: `Bearer ${API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
     });

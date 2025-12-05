@@ -33,38 +33,38 @@ import { onMounted } from "vue";
 import ChatWindow from "./components/ChatWindow.vue";
 import ConversationHistory from "./components/ConversationHistory.vue";
 import { useRoleStore } from "./store/roles";
+import { useModelStore } from "./store/models";
 
 // 初始化角色 store
 const roleStore = useRoleStore();
+const modelStore = useModelStore();
 
 onMounted(() => {
   roleStore.init();
+  modelStore.init();
 });
 </script>
 
 <style>
 :root {
-  /* 现代化颜色系统 */
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  /* ChatGPT 风格配色 */
+  --primary-color: #10a37f;
+  --primary-hover: #0e8f70;
+  --accent-color: #19c28f;
 
-  --primary-color: #667eea;
-  --primary-hover: #5a67d8;
-  --secondary-color: #f093fb;
-
-  --bg-primary: #fafbfc;
-  --bg-secondary: #f7fafc;
+  --bg-page: #f7f7f8;
+  --bg-surface: #ffffff;
+  --bg-muted: #f0f0f1;
+  --bg-card: #ffffff;
   --bg-white: #ffffff;
-  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-light: #f5f5f7;
 
-  --text-primary: #2d3748;
-  --text-secondary: #4a5568;
-  --text-muted: #718096;
-  --text-light: #a0aec0;
+  --text-primary: #0f172a;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
 
-  --border-light: rgba(226, 232, 240, 0.8);
-  --border-medium: rgba(203, 213, 224, 0.6);
+  --border-light: #e5e7eb;
+  --border-medium: #d1d5db;
 
   /* 间距系统 */
   --spacing-xs: 0.25rem;
@@ -74,23 +74,18 @@ onMounted(() => {
   --spacing-xl: 2rem;
   --spacing-2xl: 3rem;
 
-  /* 阴影系统 */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  /* 阴影与圆角 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 25px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.15);
-
-  /* 圆角系统 */
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
   --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 
   /* 动画 */
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 全局重置和基础样式 */
@@ -99,14 +94,10 @@ onMounted(() => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", "Helvetica Neue", Arial, sans-serif;
   color: var(--text-primary);
-  background: linear-gradient(
-    135deg,
-    rgba(102, 126, 234, 0.05) 0%,
-    rgba(118, 75, 162, 0.05) 100%
-  );
+  background: var(--bg-page);
   margin: 0;
   padding: 0;
   min-height: 100vh;
@@ -115,101 +106,33 @@ body {
 }
 
 #app {
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: var(--spacing-lg);
+  padding: 16px 24px 24px;
   min-height: 100vh;
   position: relative;
 }
 
-/* 背景装饰 */
+/* 背景装饰取消，保持 ChatGPT 扁平风格 */
 body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(
-      circle at 20% 80%,
-      rgba(120, 119, 198, 0.1) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 80% 20%,
-      rgba(255, 119, 198, 0.1) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 40% 40%,
-      rgba(120, 200, 255, 0.05) 0%,
-      transparent 50%
-    );
-  pointer-events: none;
-  z-index: -1;
+  content: none;
 }
 
 /* 应用头部样式 */
 .app-header {
   text-align: center;
-  margin-bottom: var(--spacing-2xl);
+  margin-bottom: var(--spacing-lg);
   position: relative;
-  padding: var(--spacing-xl) 0;
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid #ececf1;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
-.header-decoration {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 200px;
-  height: 100px;
-  pointer-events: none;
-}
-
+.header-decoration,
 .decoration-circle {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.6;
-  animation: float 6s ease-in-out infinite;
-}
-
-.circle-1 {
-  width: 20px;
-  height: 20px;
-  background: var(--primary-gradient);
-  top: 20px;
-  left: 20px;
-  animation-delay: 0s;
-}
-
-.circle-2 {
-  width: 30px;
-  height: 30px;
-  background: var(--secondary-gradient);
-  top: 10px;
-  right: 30px;
-  animation-delay: 2s;
-}
-
-.circle-3 {
-  width: 15px;
-  height: 15px;
-  background: var(--success-gradient);
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  animation-delay: 4s;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(180deg);
-  }
+  display: none;
 }
 
 .app-title {
@@ -217,50 +140,38 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: var(--spacing-md);
-  margin: 0 0 var(--spacing-sm) 0;
-  font-size: clamp(2rem, 4vw, 2.5rem);
+  margin: 0 0 4px 0;
+  font-size: clamp(1.5rem, 2.5vw, 1.9rem);
   font-weight: 700;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -0.02em;
+  color: #111827;
+  letter-spacing: -0.01em;
 }
 
 .title-icon {
   font-size: 1.2em;
-  filter: drop-shadow(0 4px 12px rgba(102, 126, 234, 0.3));
 }
 
 .app-subtitle {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--text-muted);
   font-weight: 400;
-  opacity: 0.8;
 }
 
 /* 布局样式 */
 .app-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: var(--spacing-xl);
-  min-height: calc(100vh - 200px);
+  grid-template-columns: 280px 1fr;
+  gap: var(--spacing-lg);
+  min-height: calc(100vh - 260px);
 }
 
 .sidebar {
-  background: var(--bg-card);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(20px);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-light);
   overflow: hidden;
-  transition: var(--transition-normal);
-}
-
-.sidebar:hover {
-  box-shadow: var(--shadow-xl);
-  transform: translateY(-2px);
 }
 
 .main-content {
@@ -268,16 +179,9 @@ body::before {
 }
 
 /* 响应式布局 */
-@media (max-width: 1200px) {
-  .app-layout {
-    grid-template-columns: 280px 1fr;
-    gap: var(--spacing-lg);
-  }
-}
-
 @media (max-width: 992px) {
   #app {
-    padding: var(--spacing-md);
+    padding: 12px 14px 18px;
   }
 
   .app-layout {

@@ -1,13 +1,15 @@
-import { defineStore } from "pinia";
+import { defineStore, storeToRefs } from "pinia";
 import { ref, watch } from "vue";
 import type { Message } from "../types/message";
 import { sendToDeepseekAPI } from "../api/deepseek";
+import { sendToCustomModelAPI } from "../api/customModel";
 import {
   saveMessages,
   getMessages,
   deleteConversation,
 } from "../api/chatHistory";
 import { useRoleStore } from "./roles";
+import { useModelStore } from "./models";
 
 // 上下文窗口大小：保留最近 20 条消息（约 10 轮对话）
 const MAX_CONTEXT_MESSAGES = 20;
@@ -70,6 +72,14 @@ export const useChatStore = defineStore("chat", () => {
   // Send message to AI
   const sendMessageToAI = async (text: string) => {
     const roleStore = useRoleStore();
+    const modelStore = useModelStore();
+    const { currentModel } = storeToRefs(modelStore);
+    const { currentRole } = storeToRefs(roleStore);
+    const activeModel = currentModel.value;
+
+    if (!activeModel) {
+      throw new Error("未找到可用模型，请先配置模型");
+    }
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -158,54 +168,80 @@ export const useChatStore = defineStore("chat", () => {
         startTypewriter();
       }
 
-      // Call API for AI response
-      await sendToDeepseekAPI(
-        contextMessages,
-        roleStore.currentRole.systemPrompt,
-        // === onChunk 回调：接收流式数据 ===
-        (chunk: string) => {
-          chunkCount++;
-          // 确保 chunk 是字符串
-          const safeChunk =
-            chunk === null || chunk === undefined
-              ? ""
-              : typeof chunk === "object"
-              ? JSON.stringify(chunk)
-              : String(chunk);
-          contentBuffer += safeChunk;
+      const apiKeyForModel =
+        activeModel.provider === "deepseek"
+          ? activeModel.apiKey || import.meta.env.VITE_DEEPSEEK_API_KEY || ""
+          : activeModel.apiKey || "";
 
-          // 开发调试：显示接收到的chunk（可选）
-          if (chunkCount <= 3 || chunkCount % 10 === 0) {
-            console.log(
-              `📦 [Chunk #${chunkCount}] Buffer总长: ${contentBuffer.length}`
-            );
-          }
+      if (!apiKeyForModel) {
+        throw new Error("请先为当前模型填写 API Key");
+      }
 
-          // 如果是节流模式，按间隔更新
-          if (!TYPEWRITER_MODE) {
-            const now = Date.now();
-            const timeSinceLastUpdate = now - lastUpdateTime;
-
-            // 第一次立即更新，或者达到更新间隔时更新
-            if (
-              lastUpdateTime === 0 ||
-              timeSinceLastUpdate >= UPDATE_INTERVAL
-            ) {
-              const index = messages.value.findIndex(
-                (msg) => msg.id === aiMessageId
-              );
-              if (index !== -1) {
-                messages.value[index].content = contentBuffer;
-                console.log(
-                  `✨ [节流更新] 显示内容长度: ${contentBuffer.length}，间隔: ${timeSinceLastUpdate}ms`
-                );
-              }
-              lastUpdateTime = now;
-            }
-          }
-          // 打字机模式下，定时器会自动处理显示
-        }
+      console.log(
+        "[chat] 使用模型:",
+        JSON.stringify(
+          {
+            id: activeModel.id,
+            provider: activeModel.provider,
+            model: activeModel.model,
+            baseUrl: activeModel.baseUrl,
+            endpoint: activeModel.endpoint,
+          },
+          null,
+          2
+        )
       );
+
+      const handleChunk = (chunk: string) => {
+        chunkCount++;
+        const safeChunk =
+          chunk === null || chunk === undefined
+            ? ""
+            : typeof chunk === "object"
+            ? JSON.stringify(chunk)
+            : String(chunk);
+        contentBuffer += safeChunk;
+
+        if (chunkCount <= 3 || chunkCount % 10 === 0) {
+          console.log(
+            `📦 [Chunk #${chunkCount}] Buffer总长: ${contentBuffer.length}`
+          );
+        }
+
+        if (!TYPEWRITER_MODE) {
+          const now = Date.now();
+          const timeSinceLastUpdate = now - lastUpdateTime;
+          if (lastUpdateTime === 0 || timeSinceLastUpdate >= UPDATE_INTERVAL) {
+            const index = messages.value.findIndex(
+              (msg) => msg.id === aiMessageId
+            );
+            if (index !== -1) {
+              messages.value[index].content = contentBuffer;
+              console.log(
+                `✨ [节流更新] 显示内容长度: ${contentBuffer.length}，间隔: ${timeSinceLastUpdate}ms`
+              );
+            }
+            lastUpdateTime = now;
+          }
+        }
+      };
+
+      const systemPrompt = currentRole.value.systemPrompt;
+
+      if (activeModel.provider === "deepseek") {
+        await sendToDeepseekAPI(contextMessages, systemPrompt, handleChunk, {
+          apiKey: apiKeyForModel,
+          model: activeModel.model,
+          baseUrl: activeModel.baseUrl,
+        });
+      } else {
+        await sendToCustomModelAPI(contextMessages, systemPrompt, handleChunk, {
+          apiKey: apiKeyForModel,
+          model: activeModel.model,
+          baseUrl: activeModel.baseUrl,
+          endpoint: activeModel.endpoint,
+        });
+      }
 
       console.log(
         `✅ [流式完成] 共收到 ${chunkCount} 个chunk，总长度: ${contentBuffer.length}`

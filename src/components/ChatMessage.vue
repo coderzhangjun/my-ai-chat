@@ -113,8 +113,9 @@ const copyMessage = async () => {
 <style scoped>
 .message {
   display: flex;
-  margin-bottom: 20px;
-  animation: messageSlideIn 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  gap: 12px;
+  margin: 10px 16px;
+  animation: messageSlideIn 0.4s ease;
   max-width: 100%;
 }
 
@@ -146,13 +147,13 @@ const copyMessage = async () => {
 }
 
 .avatar.user {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #10a37f;
+  color: #ffffff;
 }
 
 .avatar.assistant {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: white;
+  background: #111827;
+  color: #ffffff;
 }
 
 .avatar:hover {
@@ -164,58 +165,47 @@ const copyMessage = async () => {
   flex: 1;
   min-width: 0;
   max-width: calc(100% - 64px);
-  background: var(--bg-card);
-  backdrop-filter: blur(10px);
-  border-radius: 18px;
-  padding: 20px 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  border: 1px solid #ececf1;
   position: relative;
   overflow: hidden;
 }
 
 .message.user .message-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
+  background: #e7f5ef;
+  border: 1px solid #d7efe4;
+  color: #0f172a;
 }
 
 .message.assistant .message-content {
-  background: var(--bg-white);
-  border: 1px solid var(--border-light);
-}
-
-.message-content:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-}
-
-.message.user .message-content:hover {
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+  background: #ffffff;
+  border: 1px solid #ececf1;
 }
 
 .message-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   gap: 12px;
 }
 
 .message-role {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   opacity: 0.9;
 }
 
 .message.assistant .message-role {
-  color: var(--primary-color);
+  color: #10a37f;
 }
 
 .message-time {
   font-size: 12px;
-  opacity: 0.7;
+  opacity: 0.65;
   font-weight: 400;
   white-space: nowrap;
 }
@@ -225,8 +215,8 @@ const copyMessage = async () => {
   border: none;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
-  opacity: 0.6;
+  border-radius: 6px;
+  opacity: 0.55;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -235,17 +225,13 @@ const copyMessage = async () => {
 
 .copy-button:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.message.assistant .copy-button:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: #f2f2f4;
 }
 
 .message-text {
-  line-height: 1.8;
+  line-height: 1.7;
   font-size: 15px;
-  color: inherit;
+  color: #111827;
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
@@ -328,19 +314,19 @@ const copyMessage = async () => {
 
 /* 代码块样式 - ChatGPT 风格 */
 .message-text :deep(pre) {
-  background: #282c34;
-  border-radius: 8px;
-  padding: 16px;
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 14px;
   overflow-x: auto;
   font-family: "Fira Code", "Consolas", "Monaco", monospace;
-  margin: 16px 0;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  margin: 14px 0;
+  border: 1px solid #1f2937;
   position: relative;
 }
 
 .message.user .message-text :deep(pre) {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: #0f172a;
+  border-color: #1f2937;
 }
 
 .message-text :deep(pre code) {
@@ -360,32 +346,32 @@ const copyMessage = async () => {
 
 /* 行内代码样式 */
 .message-text :deep(code) {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(15, 23, 42, 0.06);
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: "Fira Code", "Consolas", monospace;
   font-size: 0.9em;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .message.user .message-text :deep(code) {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.08);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 /* 引用块样式 */
 .message-text :deep(blockquote) {
-  border-left: 4px solid var(--primary-color);
-  margin: 16px 0;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.03);
+  border-left: 4px solid #10a37f;
+  margin: 14px 0;
+  padding: 10px 14px;
+  background: rgba(16, 163, 127, 0.06);
   border-radius: 4px;
   opacity: 0.9;
 }
 
 .message.user .message-text :deep(blockquote) {
-  border-left-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.1);
+  border-left-color: #0d8c6c;
+  background: rgba(16, 163, 127, 0.08);
 }
 
 /* 列表样式 */
@@ -414,7 +400,7 @@ const copyMessage = async () => {
 
 /* 链接样式 */
 .message-text :deep(a) {
-  color: #667eea;
+  color: #10a37f;
   text-decoration: underline;
   transition: opacity 0.2s ease;
 }
@@ -424,7 +410,7 @@ const copyMessage = async () => {
 }
 
 .message.user .message-text :deep(a) {
-  color: rgba(255, 255, 255, 0.95);
+  color: #0d8c6c;
   text-decoration: underline;
 }
 
@@ -447,23 +433,23 @@ const copyMessage = async () => {
 
 .message-text :deep(table th),
 .message-text :deep(table td) {
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  padding: 8px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 8px 10px;
   text-align: left;
 }
 
 .message.user .message-text :deep(table th),
 .message.user .message-text :deep(table td) {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .message-text :deep(table th) {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(15, 23, 42, 0.04);
   font-weight: 600;
 }
 
 .message.user .message-text :deep(table th) {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .message-text :deep(table tr:nth-child(even)) {
