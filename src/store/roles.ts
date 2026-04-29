@@ -1,10 +1,15 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { Role } from "../types/role";
-import { DEFAULT_ROLES } from "../types/role";
+import {
+  DEFAULT_ROLES,
+  PROJECT_CUSTOM_ROLE_SEEDS,
+  PROJECT_ROLE_SEED_VERSION,
+} from "../data/defaultRoles";
 
 const STORAGE_KEY = "ai-chat-roles";
 const CURRENT_ROLE_KEY = "ai-chat-current-role";
+const ROLE_SEED_VERSION_KEY = "ai-chat-role-seed-version";
 
 type CustomRoleInput = Omit<Role, "id" | "isDefault">;
 type CustomRoleUpdates = Partial<CustomRoleInput>;
@@ -31,6 +36,27 @@ const normalizeCustomRoleInput = (roleData: CustomRoleInput): CustomRoleInput =>
   description: roleData.description.trim(),
   systemPrompt: roleData.systemPrompt.trim(),
 });
+
+const uniqueRolesById = (roleList: Role[]) => {
+  const roleMap = new Map<string, Role>();
+
+  roleList.forEach((role) => {
+    roleMap.set(role.id, role);
+  });
+
+  return Array.from(roleMap.values());
+};
+
+const mergeProjectRoles = (customRolesFromStorage: Role[], seedVersion: string | null) => {
+  const shouldApplyProjectSeeds = seedVersion !== PROJECT_ROLE_SEED_VERSION;
+  const projectSeeds = shouldApplyProjectSeeds ? PROJECT_CUSTOM_ROLE_SEEDS : [];
+
+  return uniqueRolesById([
+    ...DEFAULT_ROLES,
+    ...projectSeeds,
+    ...customRolesFromStorage,
+  ]);
+};
 
 const createCustomRoleId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -65,19 +91,19 @@ export const useRoleStore = defineStore("roles", () => {
     try {
       const savedRoles = localStorage.getItem(STORAGE_KEY);
       const savedCurrentRoleId = localStorage.getItem(CURRENT_ROLE_KEY);
+      const savedSeedVersion = localStorage.getItem(ROLE_SEED_VERSION_KEY);
 
+      let customRolesFromStorage: Role[] = [];
       if (savedRoles) {
         const parsedRoles: unknown = JSON.parse(savedRoles);
-        // 合并默认角色和自定义角色，确保默认角色始终存在
-        const customRolesFromStorage = Array.isArray(parsedRoles)
+        customRolesFromStorage = Array.isArray(parsedRoles)
           ? parsedRoles.filter(
               (role): role is Role => isRole(role) && !role.isDefault
             )
           : [];
-        roles.value = [...DEFAULT_ROLES, ...customRolesFromStorage];
-      } else {
-        roles.value = [...DEFAULT_ROLES];
       }
+
+      roles.value = mergeProjectRoles(customRolesFromStorage, savedSeedVersion);
 
       // 设置当前角色
       if (
@@ -88,10 +114,13 @@ export const useRoleStore = defineStore("roles", () => {
       } else {
         currentRoleId.value = roles.value[0]?.id || "";
       }
+
+      saveToStorage();
     } catch (error) {
       console.error("加载角色配置失败:", error);
-      roles.value = [...DEFAULT_ROLES];
+      roles.value = [...DEFAULT_ROLES, ...PROJECT_CUSTOM_ROLE_SEEDS];
       currentRoleId.value = roles.value[0]?.id || "";
+      saveToStorage();
     }
   };
 
@@ -100,6 +129,7 @@ export const useRoleStore = defineStore("roles", () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(roles.value));
       localStorage.setItem(CURRENT_ROLE_KEY, currentRoleId.value);
+      localStorage.setItem(ROLE_SEED_VERSION_KEY, PROJECT_ROLE_SEED_VERSION);
     } catch (error) {
       console.error("保存角色配置失败:", error);
     }
@@ -135,7 +165,7 @@ export const useRoleStore = defineStore("roles", () => {
       return false;
     }
 
-    roles.value.splice(roleIndex, 1);
+    roles.value = roles.value.filter((item) => item.id !== roleId);
 
     // 如果删除的是当前角色，切换到默认角色
     if (currentRoleId.value === roleId) {
