@@ -85,19 +85,28 @@ const scrollTop = ref(0);
 const scrollHeight = ref(0);
 const clientHeight = ref(0);
 
+const updateScrollInfo = () => {
+  const element = getElement();
+  if (!element) return;
+
+  scrollTop.value = element.scrollTop;
+  scrollHeight.value = element.scrollHeight;
+  clientHeight.value = element.clientHeight;
+};
+
 // 按钮显示状态
 const showScrollToTop = computed(() => scrollTop.value > 200);
 const showScrollToBottom = computed(
-  () => scrollTop.value < scrollHeight.value - clientHeight.value - 200
+  () => scrollTop.value < scrollHeight.value - clientHeight.value - 200,
 );
 
 // 计算默认位置的函数
 const getDefaultPosition = (button: "top" | "bottom") => {
   const savedX = localStorage.getItem(
-    `scroll${button === "top" ? "Top" : "Bottom"}ButtonX`
+    `scroll${button === "top" ? "Top" : "Bottom"}ButtonX`,
   );
   const savedY = localStorage.getItem(
-    `scroll${button === "top" ? "Top" : "Bottom"}ButtonY`
+    `scroll${button === "top" ? "Top" : "Bottom"}ButtonY`,
   );
 
   console.log(`🔍 [ScrollButtons] ${button} 按钮保存的位置:`, {
@@ -138,38 +147,16 @@ const dragStartTime = ref(0);
 const dragMoved = ref(false);
 const lastClickTime = ref(0);
 
-// 更新滚动信息
-const updateScrollInfo = () => {
-  const element = getElement();
-  if (element) {
-    scrollTop.value = element.scrollTop;
-    scrollHeight.value = element.scrollHeight;
-    clientHeight.value = element.clientHeight;
-
-    console.log("📊 [ScrollButtons] 滚动信息更新:", {
-      scrollTop: scrollTop.value,
-      scrollHeight: scrollHeight.value,
-      clientHeight: clientHeight.value,
-      showScrollToTop: showScrollToTop.value,
-      showScrollToBottom: showScrollToBottom.value,
-      distanceToBottom:
-        scrollHeight.value - clientHeight.value - scrollTop.value,
-    });
-  } else {
-    console.warn("⚠️ [ScrollButtons] targetElement 为空");
-  }
-};
-
 // 重置按钮位置
 const resetPosition = (button: "top" | "bottom") => {
   console.log(`🔄 [ScrollButtons] 重置 ${button} 按钮位置`);
 
   // 清除保存的位置
   localStorage.removeItem(
-    `scroll${button === "top" ? "Top" : "Bottom"}ButtonX`
+    `scroll${button === "top" ? "Top" : "Bottom"}ButtonX`,
   );
   localStorage.removeItem(
-    `scroll${button === "top" ? "Top" : "Bottom"}ButtonY`
+    `scroll${button === "top" ? "Top" : "Bottom"}ButtonY`,
   );
 
   // 重新计算默认位置
@@ -247,7 +234,7 @@ const scrollToBottom = () => {
 // 开始拖动
 const startDrag = (
   event: MouseEvent | TouchEvent,
-  button: "top" | "bottom"
+  button: "top" | "bottom",
 ) => {
   isDragging.value = true;
   dragButton.value = button;
@@ -318,20 +305,20 @@ const stopDrag = () => {
   if (dragButton.value === "top") {
     localStorage.setItem(
       "scrollTopButtonX",
-      topButtonPosition.value.x.toString()
+      topButtonPosition.value.x.toString(),
     );
     localStorage.setItem(
       "scrollTopButtonY",
-      topButtonPosition.value.y.toString()
+      topButtonPosition.value.y.toString(),
     );
   } else if (dragButton.value === "bottom") {
     localStorage.setItem(
       "scrollBottomButtonX",
-      bottomButtonPosition.value.x.toString()
+      bottomButtonPosition.value.x.toString(),
     );
     localStorage.setItem(
       "scrollBottomButtonY",
-      bottomButtonPosition.value.y.toString()
+      bottomButtonPosition.value.y.toString(),
     );
   }
 
@@ -351,21 +338,6 @@ const handleResize = () => {
   bottomButtonPosition.value.y = Math.min(bottomButtonPosition.value.y, maxY);
 };
 
-// 设置滚动监听器
-const setupScrollListener = () => {
-  const element = getElement();
-  console.log("🔧 [ScrollButtons] 设置滚动监听器");
-  console.log("🎯 [ScrollButtons] element:", element);
-
-  if (element) {
-    console.log("✅ [ScrollButtons] 目标元素存在，添加滚动监听");
-    element.addEventListener("scroll", updateScrollInfo);
-    updateScrollInfo();
-  } else {
-    console.error("❌ [ScrollButtons] 目标元素不存在！");
-  }
-};
-
 // 移除滚动监听器
 const removeScrollListener = () => {
   const element = getElement();
@@ -374,21 +346,28 @@ const removeScrollListener = () => {
   }
 };
 
+const addScrollListener = () => {
+  const element = getElement();
+  if (!element) return;
+  element.addEventListener("scroll", updateScrollInfo, { passive: true });
+  updateScrollInfo();
+};
+
 onMounted(() => {
   console.log("🔧 [ScrollButtons] 组件已挂载");
   console.log("🎯 [ScrollButtons] props.targetElement:", props.targetElement);
   console.log(
     "🔍 [ScrollButtons] props.targetElement 类型:",
-    typeof props.targetElement
+    typeof props.targetElement,
   );
   console.log(
     "🔍 [ScrollButtons] 是否是 Ref?",
-    props.targetElement && "value" in props.targetElement
+    props.targetElement && "value" in props.targetElement,
   );
   if (props.targetElement && "value" in props.targetElement) {
     console.log(
       "🔍 [ScrollButtons] Ref.value:",
-      (props.targetElement as Ref<HTMLElement | null>).value
+      (props.targetElement as Ref<HTMLElement | null>).value,
     );
   }
   console.log("📍 [ScrollButtons] 按钮初始位置:", {
@@ -400,9 +379,6 @@ onMounted(() => {
     height: window.innerHeight,
   });
 
-  // 尝试初始设置（可能为 null）
-  setupScrollListener();
-
   // 全局拖动监听
   document.addEventListener("mousemove", onDrag);
   document.addEventListener("mouseup", stopDrag);
@@ -412,43 +388,27 @@ onMounted(() => {
   // 窗口大小监听
   window.addEventListener("resize", handleResize);
 
-  // 监听 targetElement 的变化
-  // 注意：必须监听整个 props.targetElement，而不仅仅是它的 value
-  watch(
-    () => props.targetElement,
-    (newTarget, oldTarget) => {
-      console.log("🔄 [ScrollButtons] targetElement prop 变化:", {
-        oldTarget,
-        newTarget,
-      });
-      // 移除旧的监听器
-      removeScrollListener();
-      // 设置新的监听器
-      if (newTarget) {
-        setupScrollListener();
-      }
-    },
-    { immediate: false }
-  );
+  // 初次挂载时绑定滚动监听
+  addScrollListener();
 
-  // 同时监听 targetElement.value 的变化（如果是 Ref）
+  // 监听 targetElement 变化，重新绑定滚动监听
   if (props.targetElement && "value" in props.targetElement) {
-    console.log("👀 [ScrollButtons] 设置 Ref.value 监听器");
     watch(
       () => (props.targetElement as Ref<HTMLElement | null>).value,
-      (newValue, oldValue) => {
-        console.log("🔄 [ScrollButtons] Ref.value 变化:", {
-          oldValue,
-          newValue,
-        });
-        if (oldValue) {
-          removeScrollListener();
-        }
-        if (newValue) {
-          setupScrollListener();
-        }
+      () => {
+        removeScrollListener();
+        addScrollListener();
       },
-      { immediate: true } // 立即执行一次
+      { immediate: true },
+    );
+  } else {
+    watch(
+      () => props.targetElement,
+      () => {
+        removeScrollListener();
+        addScrollListener();
+      },
+      { immediate: true },
     );
   }
 });
@@ -480,13 +440,17 @@ onUnmounted(() => {
   cursor: move;
   box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 99999; /* 确保在最顶层 */
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   border: 2px solid rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(4px);
+}
+
+/* 任意弹窗打开时，彻底让出交互，避免遮挡输入框 */
+:global(body.modal-open) .scroll-button {
+  pointer-events: none;
 }
 
 .scroll-button:hover {

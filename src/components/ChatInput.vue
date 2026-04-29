@@ -497,7 +497,6 @@ const handleImageUpload = async (event: Event) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
   animation: fadeIn 0.3s ease;
 }
 

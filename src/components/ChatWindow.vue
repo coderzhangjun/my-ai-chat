@@ -82,9 +82,6 @@
     <!-- 消息输入组件，发送消息时触发 handleSendMessage 方法 -->
     <ChatInput @sendMessage="handleSendMessage" />
   </div>
-
-  <!-- 滚动控制按钮（放在外面，使用 Teleport 到 body） -->
-  <ScrollButtons :targetElement="messagesContainer" />
 </template>
 
 <script setup lang="ts">
@@ -93,7 +90,7 @@ import { useChatStore } from "../store/chat";
 import ChatMessage from "./ChatMessage.vue";
 import ChatInput from "./ChatInput.vue";
 import ViewControls from "./ViewControls.vue";
-import ScrollButtons from "./ScrollButtons.vue";
+// import ScrollButtons from "./ScrollButtons.vue";
 import ModelSelector from "./ModelSelector.vue";
 
 // 获取 Pinia 中的 chat store
@@ -143,7 +140,7 @@ const messagesContainer = ref<HTMLDivElement | null>(null);
 console.log("📝 [ChatWindow] messagesContainer ref 创建:", messagesContainer);
 console.log(
   "📝 [ChatWindow] messagesContainer 是 Ref?",
-  "value" in messagesContainer
+  "value" in messagesContainer,
 );
 
 // 在组件挂载后输出调试信息
@@ -152,7 +149,7 @@ onMounted(() => {
   console.log("📦 [ChatWindow] messagesContainer ref:", messagesContainer);
   console.log(
     "📦 [ChatWindow] messagesContainer.value:",
-    messagesContainer.value
+    messagesContainer.value,
   );
   if (messagesContainer.value) {
     console.log("✅ [ChatWindow] messagesContainer 元素存在");
@@ -183,7 +180,7 @@ watch(
   () => {
     console.log("🔄 [ChatWindow] Watch触发，消息数:", messages.value.length);
     scrollToBottom();
-  }
+  },
 );
 </script>
 
@@ -208,7 +205,6 @@ watch(
   background: #ffffff;
   border-bottom: 1px solid #ececf1;
   position: relative;
-  z-index: 10;
 }
 
 .header-left {

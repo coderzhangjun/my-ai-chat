@@ -196,7 +196,7 @@ onUnmounted(() => {
 .role-selector {
   position: relative;
   display: inline-block;
-  z-index: 100;
+
 }
 
 .role-dropdown {
@@ -250,7 +250,6 @@ onUnmounted(() => {
   border: 1px solid #ddd;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
   min-width: 200px;
@@ -360,7 +359,6 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 999;
   background: transparent;
 }
 </style>

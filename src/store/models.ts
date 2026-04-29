@@ -85,11 +85,14 @@ export const useModelStore = defineStore("models", () => {
   const updateCustomModel = (id: string, patch: Partial<ModelConfig>) => {
     const index = models.value.findIndex((item) => item.id === id);
     if (index === -1) return false;
-    if (models.value[index].isDefault) return false;
 
     models.value[index] = {
       ...models.value[index],
       ...patch,
+      // 保护不可变字段
+      id: models.value[index].id,
+      isDefault: models.value[index].isDefault,
+      provider: models.value[index].provider,
       baseUrl:
         patch.baseUrl !== undefined
           ? patch.baseUrl.replace(/\/+$/, "")

@@ -15,64 +15,66 @@
       <button class="add-button" @click="openDialog">新增模型</button>
       <button
         class="add-button"
-        :disabled="!currentModel || currentModel.isDefault"
+        :disabled="!currentModel"
         @click="editCurrent"
       >
         编辑当前
       </button>
     </div>
 
-    <div v-if="showDialog" class="dialog-backdrop" @click.self="closeDialog">
-      <div class="dialog">
-        <h3 class="dialog-title">新增自定义模型</h3>
-        <div class="dialog-body">
-          <div class="preset-row">
-            <span class="preset-label">快速填充</span>
-            <button class="preset-btn" @click="fillOhmygpt">
-              OhMyGPT · gpt-4o
-            </button>
+    <Teleport to="body">
+      <div v-show="showDialog" class="dialog-backdrop" @click.self="closeDialog">
+        <div class="dialog" @click.stop>
+          <h3 class="dialog-title">{{ editingId ? "编辑模型" : "新增自定义模型" }}</h3>
+          <div class="dialog-body">
+            <div v-if="!editingId" class="preset-row">
+              <span class="preset-label">快速填充</span>
+              <button class="preset-btn" @click="fillOhmygpt">
+                OhMyGPT · gpt-4o
+              </button>
+            </div>
+            <label class="field">
+              <span>名称</span>
+              <input v-model.trim="form.name" placeholder="例如：Qwen-Max" />
+            </label>
+            <label class="field">
+              <span>Base URL</span>
+              <input
+                v-model.trim="form.baseUrl"
+                placeholder="例如：https://api.openai.com"
+              />
+            </label>
+            <label class="field">
+              <span>模型 ID</span>
+              <input v-model.trim="form.model" placeholder="例如：gpt-4o" />
+            </label>
+            <label class="field">
+              <span>Endpoint（可选）</span>
+              <input
+                v-model.trim="form.endpoint"
+                placeholder="/v1/chat/completions"
+              />
+            </label>
+            <label class="field">
+              <span>API Key</span>
+              <input
+                v-model.trim="form.apiKey"
+                placeholder="sk-..."
+                type="password"
+              />
+            </label>
+            <label class="field">
+              <span>备注</span>
+              <input v-model.trim="form.description" placeholder="可选" />
+            </label>
           </div>
-          <label class="field">
-            <span>名称</span>
-            <input v-model.trim="form.name" placeholder="例如：Qwen-Max" />
-          </label>
-          <label class="field">
-            <span>Base URL</span>
-            <input
-              v-model.trim="form.baseUrl"
-              placeholder="例如：https://api.openai.com"
-            />
-          </label>
-          <label class="field">
-            <span>模型 ID</span>
-            <input v-model.trim="form.model" placeholder="例如：gpt-4o" />
-          </label>
-          <label class="field">
-            <span>Endpoint（可选）</span>
-            <input
-              v-model.trim="form.endpoint"
-              placeholder="/v1/chat/completions"
-            />
-          </label>
-          <label class="field">
-            <span>API Key</span>
-            <input
-              v-model.trim="form.apiKey"
-              placeholder="sk-..."
-              type="password"
-            />
-          </label>
-          <label class="field">
-            <span>备注</span>
-            <input v-model.trim="form.description" placeholder="可选" />
-          </label>
-        </div>
-        <div class="dialog-actions">
-          <button class="ghost" @click="closeDialog">取消</button>
-          <button class="primary" @click="saveModel">保存</button>
+          <div class="dialog-actions">
+            <button class="ghost" @click="closeDialog">取消</button>
+            <button class="primary" @click="saveModel">保存</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <div v-if="currentModel" class="model-info">
       <div class="info-row">
@@ -100,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, onUnmounted, reactive, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useModelStore } from "../store/models";
 
@@ -123,6 +125,12 @@ const form = reactive({
   description: "",
 });
 
+const MODAL_OPEN_CLASS = "modal-open";
+
+onUnmounted(() => {
+  document.body.classList.remove(MODAL_OPEN_CLASS);
+});
+
 const resetForm = () => {
   form.name = "";
   form.baseUrl = "";
@@ -136,10 +144,12 @@ const openDialog = () => {
   editingId.value = null;
   resetForm();
   showDialog.value = true;
+  document.body.classList.add(MODAL_OPEN_CLASS);
 };
 
 const closeDialog = () => {
   showDialog.value = false;
+  document.body.classList.remove(MODAL_OPEN_CLASS);
 };
 
 const fillOhmygpt = () => {
@@ -150,7 +160,7 @@ const fillOhmygpt = () => {
 };
 
 const editCurrent = () => {
-  if (!currentModel.value || currentModel.value.isDefault) return;
+  if (!currentModel.value) return;
   const m = currentModel.value;
   editingId.value = m.id;
   form.name = m.name;
@@ -160,6 +170,7 @@ const editCurrent = () => {
   form.endpoint = m.endpoint || "/v1/chat/completions";
   form.description = m.description || "";
   showDialog.value = true;
+  document.body.classList.add(MODAL_OPEN_CLASS);
 };
 
 const maskKey = (key?: string) => {
@@ -268,7 +279,6 @@ const saveModel = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
 }
 
 .dialog {
