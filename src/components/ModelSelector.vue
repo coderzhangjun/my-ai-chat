@@ -1,31 +1,51 @@
 <template>
   <div class="model-selector">
-    <label class="selector-label">模型通道</label>
-    <div class="selector-row">
-      <select v-model="selectedId" class="selector-control">
-        <option
-          v-for="item in models"
-          :key="item.id"
-          :value="item.id"
-          :title="item.description || item.name"
-        >
-          {{ item.name }}
-        </option>
-      </select>
-      <button class="add-button" @click="openDialog">新增模型</button>
-      <button
-        class="add-button"
-        :disabled="!currentModel"
-        @click="editCurrent"
+    <select
+      v-model="selectedId"
+      class="selector-control"
+      :title="currentModelTitle"
+      aria-label="选择模型通道"
+    >
+      <option
+        v-for="item in models"
+        :key="item.id"
+        :value="item.id"
+        :title="item.description || item.name"
       >
-        编辑当前
-      </button>
-    </div>
+        {{ item.name }}
+      </option>
+    </select>
+
+    <button class="tool-button" @click="openDialog" title="新增模型">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" />
+      </svg>
+    </button>
+    <button
+      class="tool-button"
+      :disabled="!currentModel"
+      @click="editCurrent"
+      title="编辑当前模型"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M11.333 2A2.122 2.122 0 0 1 14 4.667L5 13.667l-3.667.333.334-3.667L11.333 2z"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
 
     <Teleport to="body">
       <div v-show="showDialog" class="dialog-backdrop" @click.self="closeDialog">
         <div class="dialog" @click.stop>
-          <h3 class="dialog-title">{{ editingId ? "编辑模型" : "新增自定义模型" }}</h3>
+          <div class="dialog-header">
+            <h3 class="dialog-title">{{ editingId ? "编辑模型" : "新增自定义模型" }}</h3>
+            <button class="close-button" @click="closeDialog" title="关闭">×</button>
+          </div>
+
           <div class="dialog-body">
             <div v-if="!editingId" class="preset-row">
               <span class="preset-label">快速填充</span>
@@ -68,6 +88,7 @@
               <input v-model.trim="form.description" placeholder="可选" />
             </label>
           </div>
+
           <div class="dialog-actions">
             <button class="ghost" @click="closeDialog">取消</button>
             <button class="primary" @click="saveModel">保存</button>
@@ -75,29 +96,6 @@
         </div>
       </div>
     </Teleport>
-
-    <div v-if="currentModel" class="model-info">
-      <div class="info-row">
-        <span class="info-label">提供商</span>
-        <code class="info-value">{{ currentModel.provider }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">模型 ID</span>
-        <code class="info-value">{{ currentModel.model }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Base URL</span>
-        <code class="info-value">{{ currentModel.baseUrl }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">API Key</span>
-        <code class="info-value">{{ maskKey(currentModel.apiKey) }}</code>
-      </div>
-      <div class="info-row" v-if="currentModel.description">
-        <span class="info-label">备注</span>
-        <code class="info-value">{{ currentModel.description }}</code>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -126,6 +124,17 @@ const form = reactive({
 });
 
 const MODAL_OPEN_CLASS = "modal-open";
+
+const currentModelTitle = computed(() => {
+  const model = currentModel.value;
+  if (!model) {
+    return "选择模型通道";
+  }
+
+  return `${model.name} · ${model.model} · ${model.baseUrl} · ${maskKey(
+    model.apiKey,
+  )}`;
+});
 
 onUnmounted(() => {
   document.body.classList.remove(MODAL_OPEN_CLASS);
@@ -161,14 +170,15 @@ const fillOhmygpt = () => {
 
 const editCurrent = () => {
   if (!currentModel.value) return;
-  const m = currentModel.value;
-  editingId.value = m.id;
-  form.name = m.name;
-  form.baseUrl = m.baseUrl;
-  form.model = m.model;
-  form.apiKey = m.apiKey || "";
-  form.endpoint = m.endpoint || "/v1/chat/completions";
-  form.description = m.description || "";
+
+  const model = currentModel.value;
+  editingId.value = model.id;
+  form.name = model.name;
+  form.baseUrl = model.baseUrl;
+  form.model = model.model;
+  form.apiKey = model.apiKey || "";
+  form.endpoint = model.endpoint || "/v1/chat/completions";
+  form.description = model.description || "";
   showDialog.value = true;
   document.body.classList.add(MODAL_OPEN_CLASS);
 };
@@ -184,6 +194,7 @@ const saveModel = () => {
     alert("请填写名称、Base URL、模型 ID 和 API Key");
     return;
   }
+
   if (editingId.value) {
     const ok = modelStore.updateCustomModel(editingId.value, { ...form });
     if (ok) {
@@ -193,6 +204,7 @@ const saveModel = () => {
     const created = modelStore.addCustomModel({ ...form });
     modelStore.setCurrentModel(created.id);
   }
+
   closeDialog();
 };
 </script>
@@ -200,122 +212,136 @@ const saveModel = () => {
 <style scoped>
 .model-selector {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.selector-label {
-  font-size: 12px;
-  color: #6e6e80;
-}
-
-.selector-row {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .selector-control {
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #374151;
-  min-width: 180px;
-}
-
-.add-button {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  color: #374151;
+  height: 34px;
+  max-width: 190px;
+  min-width: 140px;
+  padding: 0 32px 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.add-button:hover {
-  background: #e5e7eb;
+.selector-control:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
 }
 
-.model-info {
-  margin-top: 6px;
-  padding: 8px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #f9fafb;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.tool-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-.info-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #374151;
+.tool-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
-.info-label {
-  width: 64px;
-  color: #6b7280;
-}
-
-.info-value {
-  background: #fff;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  color: #111827;
+.tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .dialog {
-  width: 420px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-  padding: 20px;
+  width: min(460px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 10px;
 }
 
 .dialog-title {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 16px;
-  color: #111827;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.close-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.close-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+  padding: 8px 20px 4px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .field input {
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #111827;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: #ffffff;
+  color: var(--text-primary);
+}
+
+.field input:focus {
+  border-color: rgba(16, 163, 127, 0.7);
+  outline: none;
 }
 
 .preset-row {
@@ -326,56 +352,61 @@ const saveModel = () => {
 
 .preset-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .preset-btn {
-  height: 28px;
+  height: 30px;
   padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #eef2ff;
-  color: #4338ca;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-muted);
+  color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .preset-btn:hover {
-  background: #e0e7ff;
+  background: var(--bg-hover);
 }
 
 .dialog-actions {
-  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  padding: 16px 20px 20px;
 }
 
 .dialog-actions button {
-  height: 34px;
+  height: 36px;
   padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast);
 }
 
 .dialog-actions .ghost {
-  background: #f3f4f6;
-  color: #374151;
-  border-color: #e5e7eb;
-}
-
-.dialog-actions .primary {
-  background: #4f46e5;
-  color: #fff;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
 }
 
 .dialog-actions .ghost:hover {
-  background: #e5e7eb;
+  background: var(--bg-hover);
+}
+
+.dialog-actions .primary {
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #111111;
 }
 
 .dialog-actions .primary:hover {
-  background: #4338ca;
+  background: #2f2f2f;
+}
+
+@media (max-width: 768px) {
+  .selector-control {
+    max-width: 160px;
+  }
 }
 </style>

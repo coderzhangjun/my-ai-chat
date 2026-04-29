@@ -1,9 +1,6 @@
 import type { Message } from "../types/message";
-
-interface APIMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+import { readApiErrorMessage, readOpenAICompatibleStream } from "./openAiStream";
+import { toChatApiMessages } from "../utils/chatPayload";
 
 export interface DeepseekOptions {
   apiKey: string;
@@ -21,26 +18,13 @@ export const sendToDeepseekAPI = async (
     const baseUrl = options.baseUrl || "https://api.deepseek.com";
     const endpoint = "/v1/chat/completions";
     const apiKey = options.apiKey;
-    const modelName = options.model || "deepseek-reasoner";
+    const modelName = options.model || "deepseek-v4-pro";
 
     if (!apiKey) {
       throw new Error("缺少 DeepSeek API Key");
     }
 
-    const enhancedSystemPrompt = systemPrompt || "你是一个有帮助的AI助手";
-
-    const apiMessages: APIMessage[] = [
-      {
-        role: "system",
-        content: enhancedSystemPrompt,
-      },
-      ...conversationMessages
-        .filter((msg) => !msg.loading && !msg.error)
-        .map((msg) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        })),
-    ];
+    const apiMessages = toChatApiMessages(conversationMessages, systemPrompt);
 
     console.log(
       `📤 [API] 发送请求，上下文消息数: ${conversationMessages.length}`
@@ -50,6 +34,15 @@ export const sendToDeepseekAPI = async (
       model: modelName,
       messages: apiMessages,
       stream: true,
+      stream_options: {
+        include_usage: true,
+      },
+      ...(modelName.startsWith("deepseek-v4")
+        ? {
+            thinking: { type: "enabled" as const },
+            reasoning_effort: "high",
+          }
+        : {}),
     };
 
     const response = await fetch(baseUrl + endpoint, {
@@ -61,111 +54,17 @@ export const sendToDeepseekAPI = async (
       body: JSON.stringify(requestBody),
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error(
-        `DeepSeek API 请求失败: ${response.status} ${response.statusText}`
-      );
+    if (!response.ok) {
+      throw new Error(await readApiErrorMessage(response, "DeepSeek API 请求失败"));
     }
-    // 检查是否支持流式响应
-    if (response.body) {
-      console.log("📡 [API] 开始接收流式响应...");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let totalChunks = 0;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log(`✅ [API] 流式接收完成，共处理 ${totalChunks} 个数据块`);
-          break;
-        }
-
-        // 解码并处理响应块
-        const chunk = decoder.decode(value, { stream: true });
-        // 处理数据流
-        const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-        for (const line of lines) {
-          try {
-            // 忽略 keep-alive 和其他非 JSON 数据
-            if (line.includes(": keep-alive") || !line.includes("data: ")) {
-              continue;
-            }
-
-            // 移除 "data: " 前缀
-            const jsonStr = line.replace(/^data: /, "").trim();
-            if (jsonStr === "[DONE]") {
-              console.log("🏁 [API] 收到 [DONE] 标记");
-              continue;
-            }
-
-            // 确保是有效的 JSON 字符串
-            if (!jsonStr.startsWith("{")) {
-              continue;
-            }
-
-            const json = JSON.parse(jsonStr);
-            // 提取实际的消息内容
-            if (json.choices && json.choices[0] && json.choices[0].delta) {
-              const delta = json.choices[0].delta;
-
-              // DeepSeek-reasoner 可能返回 reasoning_content（思考过程）和 content（最终回答）
-              // 我们需要处理这两种情况，并确保只处理字符串类型
-              let content = "";
-
-              // 处理思考内容（如果存在）
-              if (delta.reasoning_content) {
-                if (typeof delta.reasoning_content === "string") {
-                  content = delta.reasoning_content;
-                } else if (typeof delta.reasoning_content === "object") {
-                  // 如果是对象，尝试转换
-                  console.warn(
-                    "⚠️ [API] reasoning_content 是对象:",
-                    delta.reasoning_content
-                  );
-                  content = JSON.stringify(delta.reasoning_content);
-                }
-              }
-
-              // 处理正常回答内容（优先级更高）
-              if (delta.content !== undefined && delta.content !== null) {
-                if (typeof delta.content === "string") {
-                  content = delta.content;
-                } else if (typeof delta.content === "object") {
-                  // 如果是对象，尝试转换
-                  console.warn("⚠️ [API] content 是对象:", delta.content);
-                  content = JSON.stringify(delta.content);
-                } else {
-                  // 其他类型，转换为字符串
-                  content = String(delta.content);
-                }
-              }
-
-              if (content) {
-                totalChunks++;
-                // 只在开发时显示详细日志
-                // console.log(
-                //   `⬇️ [API] 收到内容块 #${totalChunks}:`,
-                //   content.substring(0, 20) + (content.length > 20 ? "..." : "")
-                // );
-                onChunk(content);
-              }
-            }
-          } catch (e) {
-            console.error(
-              "❌ [API] 解析响应数据出错，跳过此行:",
-              line.substring(0, 100)
-            );
-            console.debug("详细错误:", e);
-          }
-        }
-      }
-    } else {
-      console.warn("⚠️ [API] 不支持流式响应，使用普通模式");
-      // 如果不支持流式响应，则作为普通响应处理
-      const data = await response.json();
-      onChunk(data.response || "");
-    }
+    console.log("📡 [API] 开始接收流式响应...");
+    const totalChunks = await readOpenAICompatibleStream(
+      response,
+      onChunk,
+      "[DeepSeek API]"
+    );
+    console.log(`✅ [API] 流式接收完成，共处理 ${totalChunks} 个数据块`);
   } catch (error) {
     console.error("API 请求错误:", error);
     throw error;

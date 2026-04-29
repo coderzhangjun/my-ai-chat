@@ -1,9 +1,6 @@
 import type { Message } from "../types/message";
-
-interface APIMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+import { readApiErrorMessage, readOpenAICompatibleStream } from "./openAiStream";
+import { toChatApiMessages } from "../utils/chatPayload";
 
 export interface CustomModelOptions {
   apiKey: string;
@@ -31,15 +28,7 @@ export const sendToCustomModelAPI = async (
   }
 
   const cleanBase = baseUrl.replace(/\/+$/, "");
-  const apiMessages: APIMessage[] = [
-    { role: "system", content: systemPrompt || "你是一个有帮助的AI助手" },
-    ...conversationMessages
-      .filter((msg) => !msg.loading && !msg.error)
-      .map((msg) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      })),
-  ];
+  const apiMessages = toChatApiMessages(conversationMessages, systemPrompt);
 
   console.log(
     "[custom-model] 请求配置:",
@@ -68,34 +57,11 @@ export const sendToCustomModelAPI = async (
     }),
   });
 
-  if (!response.ok || !response.body) {
-    const text = await response.text().catch(() => "");
-    console.error("[custom-model] 请求失败", response.status, text);
-    throw new Error(
-      `自定义模型请求失败: ${response.status} ${response.statusText}`
-    );
+  if (!response.ok) {
+    const message = await readApiErrorMessage(response, "自定义模型请求失败");
+    console.error("[custom-model] 请求失败", message);
+    throw new Error(message);
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-
-    for (const line of lines) {
-      if (line.includes(": keep-alive") || !line.includes("data: ")) continue;
-      const jsonStr = line.replace(/^data: /, "").trim();
-      if (jsonStr === "[DONE]") continue;
-      if (!jsonStr.startsWith("{")) continue;
-      const parsed = JSON.parse(jsonStr);
-      const delta = parsed.choices?.[0]?.delta;
-      const content: unknown = delta?.content ?? "";
-      if (typeof content === "string" && content) {
-        onChunk(content);
-      }
-    }
-  }
+  await readOpenAICompatibleStream(response, onChunk, "[custom-model]");
 };

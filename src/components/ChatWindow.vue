@@ -1,21 +1,8 @@
 <template>
   <div class="chat-window" id="chatWindow">
-    <!-- 标题栏和控制按钮 -->
     <div class="chat-header">
-      <div class="header-left">
-        <div class="status-indicator"></div>
-        <h2 class="chat-title">聊天对话</h2>
-      </div>
-      <div class="header-middle">
-        <ModelSelector />
-      </div>
-      <div class="header-controls">
-        <!-- 开始新对话按钮 -->
-        <button
-          class="new-chat-button"
-          @click="handleNewChat"
-          title="开始新对话"
-        >
+      <div class="conversation-meta">
+        <button class="new-chat-button" @click="handleNewChat" title="开始新对话">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="18"
@@ -32,7 +19,14 @@
             <line x1="9" y1="12" x2="15" y2="12"></line>
           </svg>
         </button>
-        <!-- 清除按钮 -->
+        <div>
+          <h2 class="chat-title">ChatGPT</h2>
+          <p class="chat-subtitle">模型、角色与 OCR 已集成到工具栏</p>
+        </div>
+      </div>
+
+      <div class="header-toolbar">
+        <ModelSelector />
         <button
           class="clear-button"
           @click="handleClearChat"
@@ -52,67 +46,84 @@
             <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
         </button>
-        <ViewControls
-          :showAddButton="false"
-          @add="handleAddChat"
-          targetElementId="chatWindow"
-        />
+        <ViewControls :showAddButton="false" targetElementId="chatWindow" />
       </div>
     </div>
 
-    <!-- 消息列表区域 -->
     <div class="messages" ref="messagesContainer">
-      <!-- 欢迎消息 -->
       <div v-if="messages.length === 0" class="welcome-message">
-        <div class="welcome-icon">💬</div>
-        <h3>开始新的对话</h3>
-        <p>我是你的智能助手，有什么可以帮助你的吗？</p>
+        <div class="welcome-mark">AI</div>
+        <h3>今天想聊些什么？</h3>
+        <p>选择模型和角色后直接输入问题，也可以上传或粘贴图片进行 OCR 识别。</p>
       </div>
 
-      <!-- 遍历 Pinia store 中的消息数组，使用 ChatMessage 展示每条消息 -->
       <ChatMessage
         v-for="(msg, index) in messages"
         :key="msg.id"
         :message="msg"
         :class="{ 'message-appear': true }"
-        :style="{ animationDelay: `${index * 0.1}s` }"
+        :style="{ animationDelay: `${index * 0.04}s` }"
       />
     </div>
 
-    <!-- 消息输入组件，发送消息时触发 handleSendMessage 方法 -->
-    <ChatInput @sendMessage="handleSendMessage" />
+    <div v-if="uploadedDocuments.length > 0" class="document-tray">
+      <div
+        v-for="document in uploadedDocuments"
+        :key="document.id"
+        class="document-chip"
+        :title="document.name"
+      >
+        <span class="document-name">{{ document.name }}</span>
+        <span class="document-meta">
+          {{ document.chunks.length }} 片段 · {{ formatFileSize(document.size) }}
+        </span>
+        <button
+          class="document-remove"
+          type="button"
+          title="移除文件上下文"
+          @click="handleRemoveDocument(document.id)"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+
+    <ChatInput
+      @sendMessage="handleSendMessage"
+      @attachDocument="handleAttachDocument"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, computed, onMounted } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import type { UploadedDocument } from "../types/document";
 import { useChatStore } from "../store/chat";
-import ChatMessage from "./ChatMessage.vue";
+import { formatFileSize } from "../utils/documents";
 import ChatInput from "./ChatInput.vue";
-import ViewControls from "./ViewControls.vue";
-// import ScrollButtons from "./ScrollButtons.vue";
+import ChatMessage from "./ChatMessage.vue";
 import ModelSelector from "./ModelSelector.vue";
+import ViewControls from "./ViewControls.vue";
 
-// 获取 Pinia 中的 chat store
 const chatStore = useChatStore();
-// 使用 computed 确保响应式
 const messages = computed(() => chatStore.messages);
+const uploadedDocuments = computed(() => chatStore.uploadedDocuments);
+const messagesContainer = ref<HTMLDivElement | null>(null);
 
-console.log("🏗️ [ChatWindow] 组件初始化");
-
-/**
- * 当发送新消息时：
- * 1. 将用户消息添加到 store 中
- * 2. 调用 sendMessageToAI 方法处理流式响应
- */
 const handleSendMessage = async (text: string) => {
   await chatStore.sendMessageToAI(text);
 };
 
-// 处理开始新对话
+const handleAttachDocument = (document: UploadedDocument) => {
+  chatStore.attachDocument(document);
+};
+
+const handleRemoveDocument = (documentId: string) => {
+  chatStore.removeDocument(documentId);
+};
+
 const handleNewChat = async () => {
   if (messages.value.length === 0) {
-    // 如果当前没有消息，无需操作
     return;
   }
 
@@ -121,47 +132,11 @@ const handleNewChat = async () => {
   }
 };
 
-// 处理添加新聊天的方法（如果需要）
-const handleAddChat = () => {
-  // 实现添加新聊天的逻辑
-  console.log("添加新聊天");
-};
-
-// 处理清除聊天记录
 const handleClearChat = async () => {
   if (confirm("确定要清除当前对话吗？此操作不可恢复。")) {
     await chatStore.clearMessages();
   }
 };
-
-// 自动滚动到最新消息，保证对话窗口始终显示最新消息
-const messagesContainer = ref<HTMLDivElement | null>(null);
-
-console.log("📝 [ChatWindow] messagesContainer ref 创建:", messagesContainer);
-console.log(
-  "📝 [ChatWindow] messagesContainer 是 Ref?",
-  "value" in messagesContainer,
-);
-
-// 在组件挂载后输出调试信息
-onMounted(() => {
-  console.log("🎬 [ChatWindow] 组件已挂载");
-  console.log("📦 [ChatWindow] messagesContainer ref:", messagesContainer);
-  console.log(
-    "📦 [ChatWindow] messagesContainer.value:",
-    messagesContainer.value,
-  );
-  if (messagesContainer.value) {
-    console.log("✅ [ChatWindow] messagesContainer 元素存在");
-    console.log("📏 [ChatWindow] 元素尺寸:", {
-      scrollHeight: messagesContainer.value.scrollHeight,
-      clientHeight: messagesContainer.value.clientHeight,
-      scrollTop: messagesContainer.value.scrollTop,
-    });
-  } else {
-    console.error("❌ [ChatWindow] messagesContainer 元素不存在！");
-  }
-});
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -171,16 +146,12 @@ const scrollToBottom = () => {
   });
 };
 
-// 监听消息变化，更新滚动位置
 watch(
   () => [
     messages.value.length,
     messages.value[messages.value.length - 1]?.content,
   ],
-  () => {
-    console.log("🔄 [ChatWindow] Watch触发，消息数:", messages.value.length);
-    scrollToBottom();
-  },
+  scrollToBottom,
 );
 </script>
 
@@ -188,53 +159,53 @@ watch(
 .chat-window {
   display: flex;
   flex-direction: column;
-  min-height: 560px;
-  max-height: 78vh;
-  background: #ffffff;
-  border: 1px solid #ececf1;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.06);
+  height: 100vh;
+  min-height: 0;
+  background: var(--bg-surface);
+  overflow: visible;
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  background: #ffffff;
-  border-bottom: 1px solid #ececf1;
-  position: relative;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--border-light);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(14px);
 }
 
-.header-left {
+.conversation-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.header-middle {
-  flex: 1;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-}
-
-.status-indicator {
-  display: none;
+  gap: 12px;
+  min-width: 0;
 }
 
 .chat-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text-primary);
 }
 
-.header-controls {
+.chat-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.header-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
 }
 
 .new-chat-button,
@@ -244,30 +215,30 @@ watch(
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
-  color: #6e6e80;
-  border-radius: 8px;
-  transition: all 0.15s ease;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .new-chat-button:hover,
 .clear-button:hover {
-  background: #f0f2f5;
-  color: #111827;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .new-chat-button:hover {
-  color: #10a37f;
-  border-color: #cce6dd;
+  color: var(--primary-color);
 }
 
 .messages {
   flex: 1;
-  padding: 8px 0 0;
+  min-height: 0;
+  padding: 0;
   overflow-y: auto;
-  background: #f7f7f8;
+  background: var(--bg-surface);
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
@@ -276,29 +247,38 @@ watch(
 
 .welcome-message {
   text-align: center;
-  padding: 80px 20px;
-  color: #6e6e80;
-  max-width: 520px;
+  padding: 16vh 20px 80px;
+  color: var(--text-secondary);
+  max-width: 620px;
   margin: 0 auto;
 }
 
-.welcome-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 22px;
+  border-radius: 12px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .welcome-message h3 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #353740;
+  margin: 0 0 10px;
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
 }
 
 .welcome-message p {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #6e6e80;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-muted);
 }
 
 .message-appear {
@@ -323,28 +303,98 @@ watch(
 }
 
 .messages::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 4px;
+  background: #d9d9d9;
+  border-radius: 999px;
 }
 
 .messages::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: #bdbdbd;
+}
+
+.document-tray {
+  display: flex;
+  gap: 8px;
+  width: min(820px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 10px 0 0;
+  overflow-x: auto;
+}
+
+.document-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.document-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.document-meta {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.document-remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.document-remove:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 @media (max-width: 768px) {
   .chat-window {
-    min-height: 0;
-    height: calc(100vh - 110px);
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    height: calc(100vh - 58px);
   }
 
   .chat-header {
-    padding: 12px 14px;
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .chat-subtitle {
+    display: none;
+  }
+
+  .header-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .messages {
     padding: 0;
+  }
+
+  .document-tray {
+    width: calc(100% - 24px);
   }
 
   .welcome-message {

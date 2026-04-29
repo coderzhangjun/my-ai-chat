@@ -67,6 +67,21 @@ const props = defineProps<{
   message: Message;
 }>();
 
+const escapeHtml = (text: string): string => {
+  const map: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+
+  return text.replace(/[&<>"']/g, (char) => map[char]);
+};
+
+const renderStreamingText = (content: string): string =>
+  escapeHtml(content).replace(/\n/g, "<br>");
+
 // Markdown 渲染后的安全 HTML（已做转义与规则控制）
 const renderedHtml = computed(() => {
   // 额外的类型守卫，确保 content 是有效的
@@ -82,7 +97,10 @@ const renderedHtml = computed(() => {
     return renderMarkdownToHtml(JSON.stringify(content, null, 2));
   }
 
-  return renderMarkdownToHtml(String(content));
+  const text = String(content);
+  return props.message.loading
+    ? renderStreamingText(text)
+    : renderMarkdownToHtml(text);
 });
 
 // 格式化时间
@@ -113,125 +131,125 @@ const copyMessage = async () => {
 <style scoped>
 .message {
   display: flex;
-  gap: 12px;
-  margin: 10px 16px;
-  animation: messageSlideIn 0.4s ease;
+  gap: 14px;
+  width: min(820px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 18px 0;
+  animation: messageSlideIn 0.22s ease;
   max-width: 100%;
 }
 
 .message.user {
   flex-direction: row-reverse;
-  margin-left: auto;
-  margin-right: 0;
 }
 
 .message-avatar {
   flex-shrink: 0;
-  margin: 0 12px;
   display: flex;
   align-items: flex-start;
-  padding-top: 4px;
+  padding-top: 2px;
 }
 
 .avatar {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 0;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .avatar.user {
-  background: #10a37f;
-  color: #ffffff;
+  background: #111111;
 }
 
 .avatar.assistant {
-  background: #111827;
-  color: #ffffff;
-}
-
-.avatar:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  background: var(--primary-color);
 }
 
 .message-content {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: calc(100% - 64px);
-  background: #ffffff;
-  border-radius: 14px;
-  padding: 16px 18px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
-  border: 1px solid #ececf1;
+  max-width: min(720px, calc(100% - 44px));
+  background: transparent;
+  border-radius: 18px;
+  padding: 0;
+  border: none;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .message.user .message-content {
-  background: #e7f5ef;
-  border: 1px solid #d7efe4;
-  color: #0f172a;
+  background: #f4f4f4;
+  padding: 10px 14px;
+  color: var(--text-primary);
 }
 
 .message.assistant .message-content {
-  background: #ffffff;
-  border: 1px solid #ececf1;
+  width: 100%;
+  background: transparent;
 }
 
 .message-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 12px;
+  justify-content: flex-start;
+  margin-bottom: 6px;
+  gap: 8px;
 }
 
 .message-role {
   font-weight: 600;
-  font-size: 13px;
-  opacity: 0.9;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .message.assistant .message-role {
-  color: #10a37f;
+  color: var(--text-muted);
 }
 
 .message-time {
   font-size: 12px;
-  opacity: 0.65;
+  color: var(--text-muted);
+  opacity: 0;
   font-weight: 400;
   white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+
+.message:hover .message-time {
+  opacity: 1;
 }
 
 .copy-button {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  opacity: 0.55;
-  transition: all 0.2s ease;
+  padding: 5px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.copy-button:hover {
+.message:hover .copy-button {
   opacity: 1;
-  background: #f2f2f4;
+}
+
+.copy-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .message-text {
   line-height: 1.7;
   font-size: 15px;
-  color: #111827;
+  color: var(--text-primary);
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
@@ -533,34 +551,37 @@ const copyMessage = async () => {
 @keyframes messageSlideIn {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .message {
+    width: calc(100% - 24px);
+    padding: 14px 0;
+  }
+
   .message-content {
-    max-width: calc(100% - 56px);
+    max-width: calc(100% - 42px);
   }
 
   .avatar {
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+    width: 28px;
+    height: 28px;
   }
 
   .message.user .message-content,
   .message.assistant .message-content {
-    padding: 12px 16px;
-    border-radius: 16px 16px 16px 4px;
+    border-radius: 18px;
   }
 
   .message.user .message-content {
-    border-radius: 16px 4px 16px 16px;
+    padding: 10px 13px;
   }
 
   .message-text {

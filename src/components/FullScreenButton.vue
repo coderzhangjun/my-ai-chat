@@ -10,21 +10,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from "vue";
 
-// 定义组件属性
+interface VendorFullscreenDocument extends Document {
+  webkitFullscreenElement?: Element | null;
+  mozFullScreenElement?: Element | null;
+  msFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void>;
+  mozCancelFullScreen?: () => Promise<void>;
+  msExitFullscreen?: () => Promise<void>;
+}
+
+interface VendorFullscreenElement extends Element {
+  webkitRequestFullScreen?: () => Promise<void>;
+  mozRequestFullScreen?: () => Promise<void>;
+  msRequestFullscreen?: () => Promise<void>;
+}
+
 const props = defineProps({
-  // 要全屏显示的元素ID，如果不提供则全屏整个文档
   targetElementId: {
     type: String,
-    default: ''
-  }
+    default: "",
+  },
 });
 
-// 全屏状态
 const isFullScreen = ref(false);
 
-// 获取目标元素
 const getTargetElement = (): Element => {
   if (props.targetElementId) {
     const element = document.getElementById(props.targetElementId);
@@ -33,63 +44,62 @@ const getTargetElement = (): Element => {
   return document.documentElement;
 };
 
-// 检查当前是否处于全屏状态
 const checkFullScreen = () => {
+  const vendorDocument = document as VendorFullscreenDocument;
   isFullScreen.value = !!(
     document.fullscreenElement ||
-    (document as any).webkitFullscreenElement ||
-    (document as any).mozFullScreenElement ||
-    (document as any).msFullscreenElement
+    vendorDocument.webkitFullscreenElement ||
+    vendorDocument.mozFullScreenElement ||
+    vendorDocument.msFullscreenElement
   );
 };
 
-// 切换全屏状态
 const toggleFullScreen = async () => {
   if (!isFullScreen.value) {
     try {
-      const element = getTargetElement();
+      const element = getTargetElement() as VendorFullscreenElement;
       if (element.requestFullscreen) {
         await element.requestFullscreen();
-      } else if ((element as any).webkitRequestFullScreen) {
-        await (element as any).webkitRequestFullScreen();
-      } else if ((element as any).mozRequestFullScreen) {
-        await (element as any).mozRequestFullScreen();
-      } else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen();
+      } else if (element.webkitRequestFullScreen) {
+        await element.webkitRequestFullScreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
       }
     } catch (error) {
-      console.error('全屏请求失败:', error);
+      console.error("全屏请求失败:", error);
     }
   } else {
     try {
+      const vendorDocument = document as VendorFullscreenDocument;
       if (document.exitFullscreen) {
         await document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        await (document as any).mozCancelFullScreen();
-      } else if ((document as any).msExitFullscreen) {
-        await (document as any).msExitFullscreen();
+      } else if (vendorDocument.webkitExitFullscreen) {
+        await vendorDocument.webkitExitFullscreen();
+      } else if (vendorDocument.mozCancelFullScreen) {
+        await vendorDocument.mozCancelFullScreen();
+      } else if (vendorDocument.msExitFullscreen) {
+        await vendorDocument.msExitFullscreen();
       }
     } catch (error) {
-      console.error('退出全屏失败:', error);
+      console.error("退出全屏失败:", error);
     }
   }
 };
 
-// 监听全屏状态变化
 onMounted(() => {
-  document.addEventListener('fullscreenchange', checkFullScreen);
-  document.addEventListener('webkitfullscreenchange', checkFullScreen);
-  document.addEventListener('mozfullscreenchange', checkFullScreen);
-  document.addEventListener('MSFullscreenChange', checkFullScreen);
+  document.addEventListener("fullscreenchange", checkFullScreen);
+  document.addEventListener("webkitfullscreenchange", checkFullScreen);
+  document.addEventListener("mozfullscreenchange", checkFullScreen);
+  document.addEventListener("MSFullscreenChange", checkFullScreen);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', checkFullScreen);
-  document.removeEventListener('webkitfullscreenchange', checkFullScreen);
-  document.removeEventListener('mozfullscreenchange', checkFullScreen);
-  document.removeEventListener('MSFullscreenChange', checkFullScreen);
+  document.removeEventListener("fullscreenchange", checkFullScreen);
+  document.removeEventListener("webkitfullscreenchange", checkFullScreen);
+  document.removeEventListener("mozfullscreenchange", checkFullScreen);
+  document.removeEventListener("MSFullscreenChange", checkFullScreen);
 });
 </script>
 
@@ -98,18 +108,19 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
-  color: var(--text-color, #666);
-  border-radius: var(--radius-sm, 4px);
-  transition: all 0.2s;
+  color: var(--text-secondary, #5d5d5d);
+  border-radius: var(--radius-md, 10px);
+  transition: background var(--transition-fast, 0.16s ease),
+    color var(--transition-fast, 0.16s ease);
 }
 
 .fullscreen-btn:hover {
-  background-color: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--primary-color, #1890ff);
+  background-color: var(--bg-hover, #ececec);
+  color: var(--text-primary, #0d0d0d);
 }
 </style>

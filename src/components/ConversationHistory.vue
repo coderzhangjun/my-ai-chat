@@ -1,6 +1,8 @@
 <template>
   <div class="conversation-history">
-    <h3 class="history-title">历史对话</h3>
+    <div class="history-header">
+      <h3 class="history-title">聊天</h3>
+    </div>
 
     <div v-if="isLoading" class="loading">
       <div class="spinner"></div>
@@ -20,19 +22,18 @@
         v-for="conversation in conversations"
         :key="conversation.conversationId"
         class="conversation-item"
-        :class="{
-          active: conversation.conversationId === currentConversationId,
-        }"
+        :class="{ active: conversation.conversationId === currentConversationId }"
       >
-        <div
+        <button
           class="conversation-content"
           @click="loadConversation(conversation.conversationId)"
+          :title="conversation.title"
         >
-          <div class="conversation-title">{{ conversation.title }}</div>
-          <div class="conversation-date">
+          <span class="conversation-title">{{ conversation.title }}</span>
+          <span class="conversation-date">
             {{ formatDate(conversation.createdAt) }}
-          </div>
-        </div>
+          </span>
+        </button>
         <button
           class="delete-button"
           @click.stop="handleDeleteConversation(conversation.conversationId)"
@@ -40,8 +41,8 @@
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
+            width="15"
+            height="15"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -58,33 +59,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from "vue";
-import { getConversations, deleteConversation } from "../api/chatHistory";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import {
+  deleteConversation,
+  getConversations,
+  type ConversationSummary,
+} from "../api/chatHistory";
 import { useChatStore } from "../store/chat";
 
 const chatStore = useChatStore();
 const currentConversationId = computed(() => chatStore.currentConversationId);
 
-const conversations = ref<any[]>([]);
+const conversations = ref<ConversationSummary[]>([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
 
-// Format date to readable string
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
-  return (
-    date.toLocaleDateString() +
-    " " +
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
+  return date.toLocaleDateString([], {
+    month: "2-digit",
+    day: "2-digit",
+  });
 };
 
-// Load conversation from store
 const loadConversation = async (conversationId: string) => {
   await chatStore.loadConversation(conversationId);
 };
 
-// Fetch conversations
 const fetchConversations = async () => {
   isLoading.value = true;
   errorMessage.value = "";
@@ -99,7 +100,6 @@ const fetchConversations = async () => {
   }
 };
 
-// Delete conversation
 const handleDeleteConversation = async (conversationId: string) => {
   if (!confirm("确定要删除这个对话吗？此操作不可恢复。")) {
     return;
@@ -107,31 +107,27 @@ const handleDeleteConversation = async (conversationId: string) => {
 
   try {
     const success = await deleteConversation(conversationId);
-    if (success) {
-      // 如果删除的是当前对话，则清空当前消息
-      if (conversationId === currentConversationId.value) {
-        chatStore.startNewConversation();
-      }
-      // 重新加载对话列表
-      await fetchConversations();
-    } else {
+    if (!success) {
       alert("删除对话失败，请重试");
+      return;
     }
+
+    if (conversationId === currentConversationId.value) {
+      await chatStore.startNewConversation();
+    }
+
+    await fetchConversations();
   } catch (error) {
     console.error("Error deleting conversation:", error);
     alert("删除对话时出错");
   }
 };
 
-// Fetch conversations on mount
 onMounted(async () => {
   await fetchConversations();
-
-  // 监听对话更新事件
   window.addEventListener("conversation-updated", fetchConversations);
 });
 
-// 清理事件监听
 onUnmounted(() => {
   window.removeEventListener("conversation-updated", fetchConversations);
 });
@@ -139,82 +135,90 @@ onUnmounted(() => {
 
 <style scoped>
 .conversation-history {
-  border-radius: var(--radius-md);
-  background-color: var(--bg-white);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.history-header {
+  flex-shrink: 0;
+  padding: 4px 6px 8px;
 }
 
 .history-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 0;
-  margin-bottom: var(--spacing-md);
-  color: var(--text-dark);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-secondary);
 }
 
 .conversation-list {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 300px;
   overflow-y: auto;
 }
 
 .conversation-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--spacing-xs);
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent;
-  gap: 8px;
+  gap: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 2px;
+  transition: background var(--transition-fast);
 }
 
-.conversation-item:hover {
-  background-color: var(--bg-light);
-}
-
+.conversation-item:hover,
 .conversation-item.active {
-  border-left-color: var(--primary-color);
-  background-color: rgba(0, 132, 255, 0.08);
+  background: var(--bg-hover);
 }
 
 .conversation-content {
+  display: flex;
   flex: 1;
-  cursor: pointer;
   min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
 }
 
 .conversation-title {
-  font-weight: 500;
-  margin-bottom: 4px;
-  white-space: nowrap;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.25;
 }
 
 .conversation-date {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .delete-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin-right: 4px;
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #999;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast), background var(--transition-fast),
+    color var(--transition-fast);
   opacity: 0;
 }
 
@@ -223,25 +227,35 @@ onUnmounted(() => {
 }
 
 .delete-button:hover {
-  background: #fee;
-  color: #e53935;
+  background: #f9dedc;
+  color: #d93025;
 }
 
-.loading {
+.loading,
+.error-message,
+.empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-md);
+  gap: 8px;
+  min-height: 88px;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
 }
 
 .spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(0, 132, 255, 0.3);
-  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-light);
   border-top-color: var(--primary-color);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-right: var(--spacing-sm);
+}
+
+.error-message {
+  color: #d93025;
 }
 
 @keyframes spin {
@@ -250,16 +264,9 @@ onUnmounted(() => {
   }
 }
 
-.error-message {
-  color: #e53935;
-  padding: var(--spacing-md);
-  text-align: center;
-}
-
-.empty-state {
-  color: #666;
-  padding: var(--spacing-md);
-  text-align: center;
-  font-style: italic;
+@media (max-width: 900px) {
+  .conversation-list {
+    max-height: 190px;
+  }
 }
 </style>

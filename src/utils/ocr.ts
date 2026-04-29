@@ -242,7 +242,7 @@ export async function recognizeImage(
     console.log("[OCR] Worker 已终止，资源已释放");
 
     return recognizedText;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[OCR] 识别失败:", error);
 
     // 确保清理资源
@@ -256,6 +256,7 @@ export async function recognizeImage(
     }
 
     // 抛出友好的错误信息
-    throw new Error("图片识别失败: " + (error.message || "未知错误"));
+    const message = error instanceof Error ? error.message : "未知错误";
+    throw new Error("图片识别失败: " + message);
   }
 }

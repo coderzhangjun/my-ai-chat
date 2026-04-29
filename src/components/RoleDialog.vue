@@ -1,65 +1,86 @@
 <template>
-  <div class="dialog-overlay" @click.self="$emit('close')">
-    <div class="dialog">
-      <div class="dialog-header">
-        <h3>{{ isEditMode ? "编辑角色" : "添加自定义角色" }}</h3>
-        <button class="close-button" @click="$emit('close')">×</button>
-      </div>
-
-      <form class="dialog-content" @submit.prevent="handleSubmit">
-        <div class="form-group">
-          <label for="roleName">角色名称 *</label>
-          <input
-            id="roleName"
-            v-model="formData.name"
-            type="text"
-            placeholder="请输入角色名称"
-            maxlength="50"
-            required
-          />
-          <div class="field-hint">{{ formData.name.length }}/50</div>
-        </div>
-
-        <div class="form-group">
-          <label for="roleDescription">角色描述</label>
-          <input
-            id="roleDescription"
-            v-model="formData.description"
-            type="text"
-            placeholder="请输入角色描述（可选）"
-            maxlength="100"
-          />
-          <div class="field-hint">{{ formData.description.length }}/100</div>
-        </div>
-
-        <div class="form-group">
-          <label for="systemPrompt">系统提示词 *</label>
-          <textarea
-            id="systemPrompt"
-            v-model="formData.systemPrompt"
-            placeholder="请输入系统提示词，这将决定AI的行为和回答风格..."
-            rows="8"
-            maxlength="2000"
-            required
-          ></textarea>
-          <div class="field-hint">{{ formData.systemPrompt.length }}/2000</div>
-        </div>
-
-        <div class="dialog-actions">
-          <button type="button" class="cancel-button" @click="$emit('close')">
-            取消
-          </button>
-          <button type="submit" class="confirm-button" :disabled="!isFormValid">
-            {{ isEditMode ? "保存" : "添加角色" }}
+  <Teleport to="body">
+    <div class="dialog-overlay" @mousedown.self="emit('close')">
+      <section
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="role-dialog-title"
+      >
+        <div class="dialog-header">
+          <h3 id="role-dialog-title">
+            {{ isEditMode ? "编辑角色" : "添加自定义角色" }}
+          </h3>
+          <button
+            type="button"
+            class="close-button"
+            aria-label="关闭角色弹窗"
+            @click="emit('close')"
+          >
+            ×
           </button>
         </div>
-      </form>
+
+        <form class="dialog-form" @submit.prevent="handleSubmit">
+          <div ref="contentRef" class="dialog-content">
+            <div class="form-group">
+              <label for="roleName">角色名称 *</label>
+              <input
+                id="roleName"
+                ref="nameInputRef"
+                v-model="formData.name"
+                type="text"
+                placeholder="请输入角色名称"
+                maxlength="50"
+                required
+              />
+              <div class="field-hint">{{ formData.name.length }}/50</div>
+            </div>
+
+            <div class="form-group">
+              <label for="roleDescription">角色描述</label>
+              <input
+                id="roleDescription"
+                v-model="formData.description"
+                type="text"
+                placeholder="请输入角色描述（可选）"
+                maxlength="100"
+              />
+              <div class="field-hint">{{ formData.description.length }}/100</div>
+            </div>
+
+            <div class="form-group">
+              <label for="systemPrompt">系统提示词 *</label>
+              <textarea
+                id="systemPrompt"
+                v-model="formData.systemPrompt"
+                placeholder="请输入系统提示词，这将决定AI的行为和回答风格..."
+                rows="8"
+                maxlength="2000"
+                required
+              ></textarea>
+              <div class="field-hint">
+                {{ formData.systemPrompt.length }}/2000
+              </div>
+            </div>
+          </div>
+
+          <div class="dialog-actions">
+            <button type="button" class="cancel-button" @click="emit('close')">
+              取消
+            </button>
+            <button type="submit" class="confirm-button" :disabled="!isFormValid">
+              {{ isEditMode ? "保存" : "添加角色" }}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { Role } from "../types/role";
 
 // Props 定义
@@ -86,6 +107,10 @@ const formData = ref({
   description: "",
   systemPrompt: "",
 });
+const contentRef = ref<HTMLDivElement | null>(null);
+const nameInputRef = ref<HTMLInputElement | null>(null);
+
+const MODAL_OPEN_CLASS = "modal-open";
 
 // 是否为编辑模式
 const isEditMode = computed(() => !!props.editRole);
@@ -142,17 +167,20 @@ const handleKeydown = (event: KeyboardEvent) => {
 };
 
 onMounted(() => {
+  document.body.classList.add(MODAL_OPEN_CLASS);
   document.addEventListener("keydown", handleKeydown);
-  // 自动聚焦到第一个输入框
-  const nameInput = document.getElementById("roleName");
-  if (nameInput) {
-    nameInput.focus();
-  }
+
+  nextTick(() => {
+    if (contentRef.value) {
+      contentRef.value.scrollTop = 0;
+    }
+
+    nameInputRef.value?.focus({ preventScroll: true });
+  });
 });
 
-// 组件卸载时清理事件监听
-import { onUnmounted } from "vue";
 onUnmounted(() => {
+  document.body.classList.remove(MODAL_OPEN_CLASS);
   document.removeEventListener("keydown", handleKeydown);
 });
 </script>
@@ -160,48 +188,56 @@ onUnmounted(() => {
 <style scoped>
 .dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-
-  padding: 20px;
+  padding: 24px;
+  overflow-y: auto;
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
   background: white;
-  border-radius: 8px;
+  border-radius: 18px;
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
+  margin: auto 0;
+  max-height: min(720px, calc(100vh - 48px));
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+}
+
+.dialog-form {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid #eee;
+  padding: 18px 20px 10px;
 }
 
 .dialog-header h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text-primary);
 }
 
 .close-button {
   background: none;
   border: none;
   font-size: 24px;
-  color: #999;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -209,18 +245,18 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .close-button:hover {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .dialog-content {
-  padding: 24px;
-  max-height: calc(90vh - 120px);
+  padding: 10px 20px 20px;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -236,7 +272,7 @@ onUnmounted(() => {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -244,19 +280,19 @@ onUnmounted(() => {
 .form-group textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.2s ease;
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
   box-sizing: border-box;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+  border-color: rgba(16, 163, 127, 0.7);
 }
 
 .form-group textarea {
@@ -269,7 +305,7 @@ onUnmounted(() => {
 .field-hint {
   margin-top: 4px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   text-align: right;
 }
 
@@ -277,42 +313,43 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border-light);
+  background: #ffffff;
+  flex-shrink: 0;
 }
 
 .cancel-button,
 .confirm-button {
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
   border: 1px solid;
 }
 
 .cancel-button {
   background: white;
-  color: #666;
-  border-color: #ddd;
+  color: var(--text-primary);
+  border-color: var(--border-light);
 }
 
 .cancel-button:hover {
-  background: #f5f5f5;
-  border-color: #bbb;
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
 }
 
 .confirm-button {
-  background: #1976d2;
+  background: #111111;
   color: white;
-  border-color: #1976d2;
+  border-color: #111111;
 }
 
 .confirm-button:hover:not(:disabled) {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: #2f2f2f;
+  border-color: #2f2f2f;
 }
 
 .confirm-button:disabled {
@@ -320,5 +357,19 @@ onUnmounted(() => {
   border-color: #ccc;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+:global(body.modal-open) {
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .dialog-overlay {
+    padding: 12px;
+  }
+
+  .dialog {
+    max-height: calc(100vh - 24px);
+  }
 }
 </style>

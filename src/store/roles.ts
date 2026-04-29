@@ -6,6 +6,40 @@ import { DEFAULT_ROLES } from "../types/role";
 const STORAGE_KEY = "ai-chat-roles";
 const CURRENT_ROLE_KEY = "ai-chat-current-role";
 
+type CustomRoleInput = Omit<Role, "id" | "isDefault">;
+type CustomRoleUpdates = Partial<CustomRoleInput>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isRole = (value: unknown): value is Role => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    typeof value.systemPrompt === "string" &&
+    typeof value.isDefault === "boolean"
+  );
+};
+
+const normalizeCustomRoleInput = (roleData: CustomRoleInput): CustomRoleInput => ({
+  name: roleData.name.trim(),
+  description: roleData.description.trim(),
+  systemPrompt: roleData.systemPrompt.trim(),
+});
+
+const createCustomRoleId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `custom-${crypto.randomUUID()}`;
+  }
+
+  return `custom-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const useRoleStore = defineStore("roles", () => {
   // 状态
   const roles = ref<Role[]>([]);
@@ -33,11 +67,13 @@ export const useRoleStore = defineStore("roles", () => {
       const savedCurrentRoleId = localStorage.getItem(CURRENT_ROLE_KEY);
 
       if (savedRoles) {
-        const parsedRoles = JSON.parse(savedRoles);
+        const parsedRoles: unknown = JSON.parse(savedRoles);
         // 合并默认角色和自定义角色，确保默认角色始终存在
-        const customRolesFromStorage = parsedRoles.filter(
-          (role: Role) => !role.isDefault
-        );
+        const customRolesFromStorage = Array.isArray(parsedRoles)
+          ? parsedRoles.filter(
+              (role): role is Role => isRole(role) && !role.isDefault
+            )
+          : [];
         roles.value = [...DEFAULT_ROLES, ...customRolesFromStorage];
       } else {
         roles.value = [...DEFAULT_ROLES];
@@ -70,14 +106,20 @@ export const useRoleStore = defineStore("roles", () => {
   };
 
   // 添加自定义角色
-  const addCustomRole = (roleData: Omit<Role, "id" | "isDefault">) => {
+  const addCustomRole = (roleData: CustomRoleInput) => {
+    const normalizedRoleData = normalizeCustomRoleInput(roleData);
+
+    if (!normalizedRoleData.name || !normalizedRoleData.systemPrompt) {
+      return null;
+    }
+
     const newRole: Role = {
-      ...roleData,
-      id: `custom-${Date.now()}`,
+      ...normalizedRoleData,
+      id: createCustomRoleId(),
       isDefault: false,
     };
 
-    roles.value.push(newRole);
+    roles.value = [...roles.value, newRole];
     saveToStorage();
     return newRole;
   };
@@ -107,7 +149,7 @@ export const useRoleStore = defineStore("roles", () => {
   // 更新自定义角色
   const updateCustomRole = (
     roleId: string,
-    updates: Partial<Omit<Role, "id" | "isDefault">>
+    updates: CustomRoleUpdates
   ) => {
     const roleIndex = roles.value.findIndex((role) => role.id === roleId);
     if (roleIndex === -1) return false;
@@ -118,7 +160,19 @@ export const useRoleStore = defineStore("roles", () => {
       return false;
     }
 
-    roles.value[roleIndex] = { ...role, ...updates };
+    const nextRole = {
+      ...role,
+      ...updates,
+      name: updates.name?.trim() ?? role.name,
+      description: updates.description?.trim() ?? role.description,
+      systemPrompt: updates.systemPrompt?.trim() ?? role.systemPrompt,
+    };
+
+    if (!nextRole.name || !nextRole.systemPrompt) {
+      return false;
+    }
+
+    roles.value[roleIndex] = nextRole;
     saveToStorage();
     return true;
   };

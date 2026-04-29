@@ -38,18 +38,19 @@ const openInNewWindow = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
-  color: var(--text-color, #666);
-  border-radius: var(--radius-sm, 4px);
-  transition: all 0.2s;
+  color: var(--text-secondary, #5d5d5d);
+  border-radius: var(--radius-md, 10px);
+  transition: background var(--transition-fast, 0.16s ease),
+    color var(--transition-fast, 0.16s ease);
 }
 
 .new-window-btn:hover {
-  background-color: var(--bg-hover, rgba(0, 0, 0, 0.05));
-  color: var(--primary-color, #1890ff);
+  background-color: var(--bg-hover, #ececec);
+  color: var(--text-primary, #0d0d0d);
 }
 </style>

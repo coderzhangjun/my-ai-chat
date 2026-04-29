@@ -10,11 +10,11 @@ const DEFAULT_MODELS: ModelConfig[] = [
     id: "deepseek-default",
     name: "DeepSeek 默认",
     provider: "deepseek",
-    model: "deepseek-reasoner",
+    model: "deepseek-v4-pro",
     baseUrl: "https://api.deepseek.com",
     endpoint: "/v1/chat/completions",
     isDefault: true,
-    description: "保留默认 DeepSeek 通道，可自填密钥",
+    description: "DeepSeek 官方新模型，默认开启思考模式",
   },
 ];
 

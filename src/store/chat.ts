@@ -1,6 +1,7 @@
 import { defineStore, storeToRefs } from "pinia";
 import { ref, watch } from "vue";
 import type { Message } from "../types/message";
+import type { UploadedDocument } from "../types/document";
 import { sendToDeepseekAPI } from "../api/deepseek";
 import { sendToCustomModelAPI } from "../api/customModel";
 import {
@@ -8,11 +9,26 @@ import {
   getMessages,
   deleteConversation,
 } from "../api/chatHistory";
+import {
+  DEFAULT_CONTEXT_BUDGET,
+  prepareContextMessages,
+} from "../utils/chatPayload";
+import { buildDocumentContext } from "../utils/documents";
 import { useRoleStore } from "./roles";
 import { useModelStore } from "./models";
 
-// 上下文窗口大小：保留最近 20 条消息（约 10 轮对话）
-const MAX_CONTEXT_MESSAGES = 20;
+const STREAM_UPDATE_INTERVAL = 240;
+const MAX_ACTIVE_DOCUMENTS = 5;
+
+const parseStoredMessages = (): Message[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem("chatMessages") || "[]");
+    return Array.isArray(parsed) ? (parsed as Message[]) : [];
+  } catch (error) {
+    console.error("加载本地聊天记录失败:", error);
+    return [];
+  }
+};
 
 export const useChatStore = defineStore("chat", () => {
   // From localStorage, load the current conversation ID or generate a new one
@@ -22,8 +38,10 @@ export const useChatStore = defineStore("chat", () => {
 
   // From localStorage, load messages
   const messages = ref<Message[]>(
-    JSON.parse(localStorage.getItem("chatMessages") || "[]")
+    parseStoredMessages()
   );
+
+  const uploadedDocuments = ref<UploadedDocument[]>([]);
 
   // Loading state for conversations
   const isLoading = ref<boolean>(false);
@@ -36,40 +54,42 @@ export const useChatStore = defineStore("chat", () => {
     localStorage.setItem("currentConversationId", newConversationId);
   });
 
-  // Watch for changes to messages and save to localStorage and backend
-  watch(
-    messages,
-    async (newMessages) => {
-      localStorage.setItem("chatMessages", JSON.stringify(newMessages));
+  const getPersistableMessages = (items: Message[]) =>
+    items.filter((msg) => !msg.loading);
 
-      // 仅在有消息时尝试保存到后端
-      if (newMessages.length > 0) {
-        // === 新增：如果存在 loading 消息（流式中），则跳过保存，避免频繁写入 ===
-        const hasLoading = newMessages.some((msg) => msg.loading === true);
-        if (hasLoading) {
-          return;
-        }
+  const persistLocalMessages = () => {
+    localStorage.setItem(
+      "chatMessages",
+      JSON.stringify(getPersistableMessages(messages.value))
+    );
+  };
 
-        try {
-          // Create a title from the first user message if available
-          const firstUserMessage = newMessages.find(
-            (msg) => msg.role === "user"
-          );
-          const title = firstUserMessage
-            ? firstUserMessage.content.substring(0, 50) +
-              (firstUserMessage.content.length > 50 ? "..." : "")
-            : `Conversation ${new Date().toLocaleString()}`;
+  const getConversationTitle = (items: Message[]) => {
+    const firstUserMessage = items.find((msg) => msg.role === "user");
+    return firstUserMessage
+      ? firstUserMessage.content.substring(0, 50) +
+          (firstUserMessage.content.length > 50 ? "..." : "")
+      : `Conversation ${new Date().toLocaleString()}`;
+  };
 
-          await saveMessages(newMessages, currentConversationId.value, title);
-        } catch (error) {
-          console.error("Failed to save messages to backend:", error);
-        }
-      }
-    },
-    { deep: true }
-  );
+  const saveCurrentConversation = async () => {
+    const stableMessages = getPersistableMessages(messages.value);
+    if (stableMessages.length === 0) {
+      return;
+    }
 
-  // Send message to AI
+    try {
+      await saveMessages(
+        stableMessages,
+        currentConversationId.value,
+        getConversationTitle(stableMessages)
+      );
+      window.dispatchEvent(new CustomEvent("conversation-updated"));
+    } catch (error) {
+      console.error("Failed to save messages to backend:", error);
+    }
+  };
+
   const sendMessageToAI = async (text: string) => {
     const roleStore = useRoleStore();
     const modelStore = useModelStore();
@@ -80,7 +100,7 @@ export const useChatStore = defineStore("chat", () => {
     if (!activeModel) {
       throw new Error("未找到可用模型，请先配置模型");
     }
-    // Add user message
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -89,7 +109,6 @@ export const useChatStore = defineStore("chat", () => {
     };
     messages.value.push(userMessage);
 
-    // Add AI message placeholder
     const aiMessageId = (Date.now() + 1).toString();
     const aiMessage: Message = {
       id: aiMessageId,
@@ -99,75 +118,21 @@ export const useChatStore = defineStore("chat", () => {
       loading: true,
     };
     messages.value.push(aiMessage);
-
-    // === 流式配置 ===
-    const TYPEWRITER_MODE = false; // true=打字机模式(更慢更明显), false=节流模式(更快)
-    const UPDATE_INTERVAL = 150; // 节流模式的更新间隔（毫秒）- 调大让流式更明显
-    const TYPEWRITER_SPEED = 30; // 打字机模式：每个字符显示间隔（毫秒）
+    persistLocalMessages();
 
     let contentBuffer = ""; // 累积从 API 返回的内容
-    let displayedLength = 0; // 已经显示的字符长度
     let lastUpdateTime = 0;
     let chunkCount = 0;
-    let typewriterTimer: number | null = null; // 打字机定时器
 
-    console.log(
-      `🚀 [流式输出] 开始请求 AI (模式: ${
-        TYPEWRITER_MODE ? "打字机" : "节流"
-      })...`
-    );
-
-    // 打字机效果：逐字显示函数
-    const startTypewriter = () => {
-      if (typewriterTimer) return; // 已经在运行
-
-      typewriterTimer = setInterval(() => {
-        if (displayedLength >= contentBuffer.length) {
-          // 已经显示完所有内容，但可能还有新内容到来，继续等待
-          return;
-        }
-
-        // 每次增加 1-3 个字符（随机，更自然）
-        const step = Math.floor(Math.random() * 3) + 1;
-        displayedLength = Math.min(
-          displayedLength + step,
-          contentBuffer.length
-        );
-
-        const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
-        if (index !== -1) {
-          messages.value[index].content = contentBuffer.substring(
-            0,
-            displayedLength
-          );
-          console.log(
-            `⌨️ [打字机] 显示进度: ${displayedLength}/${contentBuffer.length}`
-          );
-        }
-      }, TYPEWRITER_SPEED);
-    };
-
-    // 停止打字机
-    const stopTypewriter = () => {
-      if (typewriterTimer) {
-        clearInterval(typewriterTimer);
-        typewriterTimer = null;
-        console.log("⏹️ [打字机] 停止");
+    const updateAssistantMessage = (content: string, loading = true) => {
+      const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
+      if (index !== -1) {
+        messages.value[index].content = content;
+        messages.value[index].loading = loading;
       }
     };
 
     try {
-      // 准备上下文消息
-      const contextMessages = messages.value
-        .slice(0, -1)
-        .filter((msg) => !msg.loading && !msg.error)
-        .slice(-MAX_CONTEXT_MESSAGES);
-
-      // 启动打字机效果（如果启用）
-      if (TYPEWRITER_MODE) {
-        startTypewriter();
-      }
-
       const apiKeyForModel =
         activeModel.provider === "deepseek"
           ? activeModel.apiKey || import.meta.env.VITE_DEEPSEEK_API_KEY || ""
@@ -192,37 +157,30 @@ export const useChatStore = defineStore("chat", () => {
         )
       );
 
+      const documentContext = buildDocumentContext(uploadedDocuments.value, text);
+      const apiMessages = [...messages.value.slice(0, -1)];
+      const latestUserIndex = apiMessages.length - 1;
+
+      if (documentContext && latestUserIndex >= 0) {
+        apiMessages[latestUserIndex] = {
+          ...userMessage,
+          content: `${documentContext}\n\n用户问题：\n${text}`,
+        };
+      }
+
+      const contextMessages = prepareContextMessages(
+        apiMessages,
+        DEFAULT_CONTEXT_BUDGET
+      );
+
       const handleChunk = (chunk: string) => {
         chunkCount++;
-        const safeChunk =
-          chunk === null || chunk === undefined
-            ? ""
-            : typeof chunk === "object"
-            ? JSON.stringify(chunk)
-            : String(chunk);
-        contentBuffer += safeChunk;
+        contentBuffer += chunk;
 
-        if (chunkCount <= 3 || chunkCount % 10 === 0) {
-          console.log(
-            `📦 [Chunk #${chunkCount}] Buffer总长: ${contentBuffer.length}`
-          );
-        }
-
-        if (!TYPEWRITER_MODE) {
-          const now = Date.now();
-          const timeSinceLastUpdate = now - lastUpdateTime;
-          if (lastUpdateTime === 0 || timeSinceLastUpdate >= UPDATE_INTERVAL) {
-            const index = messages.value.findIndex(
-              (msg) => msg.id === aiMessageId
-            );
-            if (index !== -1) {
-              messages.value[index].content = contentBuffer;
-              console.log(
-                `✨ [节流更新] 显示内容长度: ${contentBuffer.length}，间隔: ${timeSinceLastUpdate}ms`
-              );
-            }
-            lastUpdateTime = now;
-          }
+        const now = Date.now();
+        if (lastUpdateTime === 0 || now - lastUpdateTime >= STREAM_UPDATE_INTERVAL) {
+          updateAssistantMessage(contentBuffer);
+          lastUpdateTime = now;
         }
       };
 
@@ -243,40 +201,22 @@ export const useChatStore = defineStore("chat", () => {
         });
       }
 
-      console.log(
-        `✅ [流式完成] 共收到 ${chunkCount} 个chunk，总长度: ${contentBuffer.length}`
-      );
-
-      // 如果是打字机模式，等待所有内容显示完成
-      if (TYPEWRITER_MODE) {
-        console.log("⏳ [打字机] 等待显示完成...");
-        // 等待打字机显示完所有内容
-        while (displayedLength < contentBuffer.length) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        stopTypewriter();
-      }
-
-      // === 流式结束后，确保最终内容和状态更新 ===
-      const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
-      if (index !== -1) {
-        messages.value[index].content = contentBuffer; // 保证收尾完整
-        messages.value[index].loading = false;
-        console.log("🎉 [完成] 设置 loading = false，准备保存到后端");
-      }
+      console.log(`✅ [流式完成] ${chunkCount} chunks，长度 ${contentBuffer.length}`);
+      updateAssistantMessage(contentBuffer, false);
+      persistLocalMessages();
+      await saveCurrentConversation();
     } catch (error) {
       console.error("❌ [错误] 发送消息失败:", error);
 
-      // 清理打字机定时器
-      stopTypewriter();
-
-      // Handle error, update AI message to error state
       const index = messages.value.findIndex((msg) => msg.id === aiMessageId);
       if (index !== -1) {
-        messages.value[index].content = "抱歉，发生了错误，请稍后再试。";
+        messages.value[index].content =
+          error instanceof Error ? error.message : "抱歉，发生了错误，请稍后再试。";
         messages.value[index].loading = false;
-        (messages.value[index] as any).error = true;
+        messages.value[index].error = true;
       }
+      persistLocalMessages();
+      await saveCurrentConversation();
     }
   };
 
@@ -290,9 +230,11 @@ export const useChatStore = defineStore("chat", () => {
 
       // Clear local messages
       messages.value = [];
+      uploadedDocuments.value = [];
 
       // Generate a new conversation ID
       currentConversationId.value = Date.now().toString();
+      persistLocalMessages();
 
       // 触发历史列表更新
       window.dispatchEvent(new CustomEvent("conversation-updated"));
@@ -304,10 +246,14 @@ export const useChatStore = defineStore("chat", () => {
 
   // Start new conversation (开始新对话，保留旧对话)
   const startNewConversation = async () => {
+    await saveCurrentConversation();
+
     // 当前对话会自动通过 watch 保存到后端
     // 直接清空消息数组并生成新的对话 ID
     messages.value = [];
+    uploadedDocuments.value = [];
     currentConversationId.value = Date.now().toString();
+    persistLocalMessages();
 
     // 触发自定义事件，通知历史列表更新
     window.dispatchEvent(new CustomEvent("conversation-updated"));
@@ -323,7 +269,9 @@ export const useChatStore = defineStore("chat", () => {
 
       if (fetchedMessages.length > 0) {
         messages.value = fetchedMessages;
+        uploadedDocuments.value = [];
         currentConversationId.value = conversationId;
+        persistLocalMessages();
       } else {
         errorMessage.value = "No messages found for this conversation";
       }
@@ -335,8 +283,26 @@ export const useChatStore = defineStore("chat", () => {
     }
   };
 
+  const attachDocument = (document: UploadedDocument) => {
+    uploadedDocuments.value = [
+      document,
+      ...uploadedDocuments.value.filter((item) => item.id !== document.id),
+    ].slice(0, MAX_ACTIVE_DOCUMENTS);
+  };
+
+  const removeDocument = (documentId: string) => {
+    uploadedDocuments.value = uploadedDocuments.value.filter(
+      (document) => document.id !== documentId
+    );
+  };
+
+  const clearDocuments = () => {
+    uploadedDocuments.value = [];
+  };
+
   return {
     messages,
+    uploadedDocuments,
     currentConversationId,
     isLoading,
     errorMessage,
@@ -344,5 +310,8 @@ export const useChatStore = defineStore("chat", () => {
     clearMessages,
     startNewConversation,
     loadConversation,
+    attachDocument,
+    removeDocument,
+    clearDocuments,
   };
 });
