@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execSync } from "node:child_process";
@@ -21,8 +21,35 @@ const run = (command, cwd = repoRoot) => {
   });
 };
 
+const read = (command, cwd = repoRoot) =>
+  execSync(command, { cwd, encoding: "utf8" });
+
+const cleanupStaleGhPagesWorktree = () => {
+  const output = read("git worktree list --porcelain");
+  const blocks = output.trim().split("\n\n");
+
+  for (const block of blocks) {
+    if (!block.includes("branch refs/heads/gh-pages")) {
+      continue;
+    }
+
+    const worktreeLine = block
+      .split("\n")
+      .find((line) => line.startsWith("worktree "));
+    if (!worktreeLine) {
+      continue;
+    }
+
+    const stalePath = worktreeLine.replace("worktree ", "").trim();
+    run(`git worktree remove "${stalePath}" --force`);
+  }
+
+  run("git worktree prune");
+};
+
 try {
   run("git fetch origin gh-pages");
+  cleanupStaleGhPagesWorktree();
   run(`git worktree add --track -B gh-pages "${worktreeDir}" origin/gh-pages`);
 
   // 清空工作树中的旧发布产物，只保留 .git 元数据。
@@ -30,7 +57,11 @@ try {
     'bash -lc \'shopt -s dotglob extglob && rm -rf -- !(.git)\'',
     worktreeDir
   );
-  cpSync(distDir, worktreeDir, { recursive: true });
+  for (const item of readdirSync(distDir)) {
+    cpSync(resolve(distDir, item), resolve(worktreeDir, item), {
+      recursive: true,
+    });
+  }
 
   run("git add -A", worktreeDir);
 
