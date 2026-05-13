@@ -6,7 +6,8 @@
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest",
-    "deploy": "gh-pages -d dist"
+    "deploy": "node scripts/deploy-gh-pages.mjs",
+    "deploy:legacy": "gh-pages -d dist"
   },
   "dependencies": {
     "highlight.js": "^11.11.1",
